@@ -160,6 +160,7 @@ def run_openvla_oft(
             # If action queue is empty, requery model
             if len(action_queue) == 0:
                 # Prepare observation
+                print_flag = True
                 while True and not rospy.is_shutdown():
                     result = ros_operator.get_frame()
                     if not result:
@@ -190,12 +191,12 @@ def run_openvla_oft(
                 action_queue.extend(actions)
 
             # Get action from queue
-            rate = rospy.Rate(cfg.publish_rate)
+            #rate = rospy.Rate(cfg.publish_rate)
             while len(action_queue) > 0 and not rospy.is_shutdown():
                 action = action_queue.popleft()
                 left_action = action[:7]
                 right_action = action [7:14]
-                ros_operator.puppet_arm_publish(left_action, right_action)
+                ros_operator.puppet_arm_publish_continuous(left_action, right_action)
                 #rate.sleep()
             t += 1
 
