@@ -24,7 +24,7 @@ import time
 import threading
 import math
 import threading
-
+import tensorflow_datasets as tfds
 
 import sys
 sys.path.append("./")
@@ -52,6 +52,8 @@ from experiments.robot.robot_utils import (
 )
 task_config = {'camera_names': ['cam_high', 'cam_left_wrist', 'cam_right_wrist']}
 
+# import l1 loss calculation
+from prismatic.training.train_utils import compute_actions_l1_loss
 
 #main config
 @dataclass
@@ -67,13 +69,13 @@ class GenerateConfig:
     num_open_loop_steps: int = 50                    # Number of actions to execute open-loop before requerying policy
 
     use_vla_server: bool = True                      # Whether to query remote VLA server for actions
-    vla_server_url: Union[str, Path] = "127.0.0.1"            # Remote VLA server URL (set to 127.0.0.1 if on same machine)
+    vla_server_url: Union[str, Path] = "dgx-15"            # Remote VLA server URL (set to 127.0.0.1 if on same machine)
 
     #################################################################################################################
     # ALOHA environment-specific parameters
     #################################################################################################################
     num_rollouts_planned: int = 50                   # Number of test rollouts
-    max_steps: int = 1500                            # Max number of steps per rollout
+    max_steps: int = 12                            # Max number of steps per rollout
     use_relative_actions: bool = False               # Whether to use relative actions (delta joint angles)
     publish_rate: int = 25
     #################################################################################################################
@@ -127,7 +129,8 @@ def run_openvla_oft(
     task_description: str,
     server_endpoint: str,
     resize_size,
-    ros_operator
+    ros_operator,
+    sample
 ):
     # Initialize action queue
     action_queue = deque(maxlen=cfg.num_open_loop_steps)
@@ -151,7 +154,7 @@ def run_openvla_oft(
    # left1 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3393220901489258]
    # right1 = [-0.00133514404296875, 0.00247955322265625, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3397035598754883]
     
-    ros_operator.puppet_arm_publish_continuous(left0, right0)
+    
     try:
         while t < cfg.max_steps:
             # Get step start time (used to compute how much to sleep between steps)
@@ -160,22 +163,28 @@ def run_openvla_oft(
             # If action queue is empty, requery model
             if len(action_queue) == 0:
                 # Prepare observation
-                print_flag = True
-                while True and not rospy.is_shutdown():
-                    result = ros_operator.get_frame()
-                    if not result:
-                        if print_flag:
-                            print("syn fail")
-                            print_flag = False
-                        #rate.sleep()
+                # get qpos and image input
+
+                # Load TFDS dataset for image inputs
+                
+                
+                # Load a robotics dataset from TFDS (example: bridge_dataset)
+                # You can replace 'bridge_dataset' with other available robotics datasets
+                
+                    
+                    # Extract images from the dataset sample
+                    # Typical structure: sample['steps'][0]['observation']['image']
+                l1_loss = 0
+                num = 0
+                for i,step in enumerate(sample['steps']):
+                    if i != 0 or i % 25 != 0:
                         continue
-                    else:
-                        print_flag = True
-                        (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-                           puppet_arm_left, puppet_arm_right, robot_base) = result
-                        print()
-                        qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
-                        break
+                    img_front = step['observation']['image'].numpy()
+                    img_left = step['observation']['left_wrist_image'].numpy()
+                    img_right = step['observation']['right_wrist_image'].numpy()
+                    qpos = step['observation']['state'].numpy()
+                # Get qpos (joint positions) - you may need to adapt this based on your robot setup
+                #qpos = np.concatenate([left0, right0])  # Use initialized positions as fallback
                 observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
                 observation["instruction"] = task_description
                 # Save processed images for replay
@@ -192,14 +201,48 @@ def run_openvla_oft(
 
             # Get action from queue
             #rate = rospy.Rate(cfg.publish_rate)
-            while len(action_queue) > 0 and not rospy.is_shutdown():
-                action = action_queue.popleft()
-                left_action = action[:7]
-                right_action = action [7:14]
-                ros_operator.puppet_arm_publish_continuous(left_action, right_action)
+            #while len(action_queue) > 0 and not rospy.is_shutdown():
+            #    action = action_queue.popleft()
+            #    left_action = action[:7]
+            #    right_action = action [7:14]
+            #    ros_operator.puppet_arm_publish_continuous(left_action, right_action)
                 #rate.sleep()
+            
+            # Calculate L1 loss between predicted actions and current state
+            while len(action_queue) > 0:
+                # Get the first action from queue for L1 loss calculation
+                predicted_action = action_queue.popleft()  # Use first action as prediction
+                
+                # Extract left and right arm actions
+                predicted_left_action = predicted_action[:7]
+                predicted_right_action = predicted_action[7:14]
+                
+                # Use current qpos as ground truth (current state)
+                # This represents the "no change" baseline
+                ground_truth_left = qpos[:7]   # First 7 joints for left arm
+                ground_truth_right = qpos[7:14]  # Next 7 joints for right arm
+                
+                # Calculate L1 loss for left and right arms
+                left_arm_l1_loss = np.mean(np.abs(np.array(predicted_left_action) - np.array(ground_truth_left)))
+                right_arm_l1_loss = np.mean(np.abs(np.array(predicted_right_action) - np.array(ground_truth_right)))
+                
+                # Calculate total L1 loss
+                total_l1_loss = (left_arm_l1_loss + right_arm_l1_loss) / 2.0
+                l1_loss += total_l1_loss
+                # Print L1 loss information
+                #print(f"Step {t}: L1 Loss - Left: {left_arm_l1_loss:.6f}, Right: {right_arm_l1_loss:.6f}, Total: {total_l1_loss:.6f}")
+                #print(f"Total L1 loss: {l1_loss:.6f}")
+                num += 1
+                # Alternative: Calculate L1 loss using the imported function if we have tokenized actions
+                # Note: This would require converting actions to token IDs first
+                # if 'action_tokenizer' in locals():
+                #     # Convert continuous actions to token IDs (if needed)
+                #     # predicted_tokens = action_tokenizer.encode_actions_to_token_ids(predicted_action)
+                #     # ground_truth_tokens = action_tokenizer.encode_actions_to_token_ids(np.concatenate([ground_truth_left, ground_truth_right]))
+                #     # l1_loss = compute_actions_l1_loss(action_tokenizer, predicted_tokens, ground_truth_tokens, mask)
+                #     pass
             t += 1
-
+        print(f"Average L1 loss: {l1_loss/num:.6f}")
     except (KeyboardInterrupt, Exception) as e:
         print(e)
 
@@ -630,8 +673,17 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
     #Start Policy:
     if cfg.policy_type == "openvla-oft":
     #Run policy
+        ds, info = tfds.load(ds, info = tfds.load(
+            'adjust_bottle_tfds:1.0.0',  # 数据集名称
+            data_dir='/home/congcong/yanzhengyang',  # 新目录路径
+            split='train',  # 指定拆分，例如 'train' 或 'test'
+            with_info=True  # 获取数据集元数据
+        )
+        ds_iter = iter(ds.take(1))  # Take one sample
+        sample = next(ds_iter)
+
         episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
-            run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
+            run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator, sample)
         )
     else:
         raise NotImplemented

@@ -1,0 +1,549 @@
+Sun Aug 17 00:40:32 2025       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.129.03             Driver Version: 535.129.03   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  NVIDIA H800                    On  | 00000000:D1:00.0 Off |                    0 |
+| N/A   32C    P0              67W / 700W |      4MiB / 81559MiB |      0%      Default |
+|                                         |                      |             Disabled |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+2025-08-17 00:40:44.027607: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-08-17 00:40:44.197201: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2025-08-17 00:40:44.197347: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-08-17 00:40:44.223666: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2025-08-17 00:40:44.282258: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI AVX512_BF16 AVX_VNNI AMX_TILE AMX_INT8 AMX_BF16 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-08-17 00:40:46.943870: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Using ALOHA constants:
+  NUM_ACTIONS_CHUNK = 25
+  ACTION_DIM = 14
+  PROPRIO_DIM = 14
+  ACTION_PROPRIO_NORMALIZATION_TYPE = bounds
+If needed, manually set the correct constants in `prismatic/vla/constants.py`!
+2025-08-17 00:40:58.638917: W tensorflow/core/common_runtime/gpu/gpu_device.cc:2348] TensorFlow was not built with CUDA kernel binaries compatible with compute capability 9.0. CUDA kernels will be jit-compiled from PTX, which could take 30 minutes or longer.
+Instantiating pretrained VLA policy...
+Warning: No config.json found at /home/congcong/yanzhengyang/aloha_adjust_bottle_100000/config.json
+
+------------------------------------------------------------------------------------------------
+No modeling_prismatic.py found in checkpoint directory.
+Copied current version from: ./prismatic/extern/hf/modeling_prismatic.py
+To checkpoint location: /home/congcong/yanzhengyang/aloha_adjust_bottle_100000/modeling_prismatic.py
+------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------
+No configuration_prismatic.py found in checkpoint directory.
+Copied current version from: ./prismatic/extern/hf/configuration_prismatic.py
+To checkpoint location: /home/congcong/yanzhengyang/aloha_adjust_bottle_100000/configuration_prismatic.py
+------------------------------------------------------------------------------------------------
+
+Traceback (most recent call last):
+  File "/home/congcong/yanzhengyang/openvla-oft/vla-scripts/deploy.py", line 156, in <module>
+    deploy()
+  File "/home/congcong/miniconda3/envs/openvla-oft/lib/python3.10/site-packages/draccus/argparsing.py", line 203, in wrapper_inner
+    response = fn(cfg, *args, **kwargs)
+  File "/home/congcong/yanzhengyang/openvla-oft/vla-scripts/deploy.py", line 151, in deploy
+    server = OpenVLAServer(cfg)
+  File "/home/congcong/yanzhengyang/openvla-oft/vla-scripts/deploy.py", line 55, in __init__
+    self.vla = get_vla(cfg)
+  File "/home/congcong/yanzhengyang/openvla-oft/experiments/robot/openvla_utils.py", line 282, in get_vla
+    vla = AutoModelForVision2Seq.from_pretrained(
+  File "/home/congcong/miniconda3/envs/openvla-oft/lib/python3.10/site-packages/transformers/models/auto/auto_factory.py", line 523, in from_pretrained
+    config, kwargs = AutoConfig.from_pretrained(
+  File "/home/congcong/miniconda3/envs/openvla-oft/lib/python3.10/site-packages/transformers/models/auto/configuration_auto.py", line 928, in from_pretrained
+    config_dict, unused_kwargs = PretrainedConfig.get_config_dict(pretrained_model_name_or_path, **kwargs)
+  File "/home/congcong/miniconda3/envs/openvla-oft/lib/python3.10/site-packages/transformers/configuration_utils.py", line 631, in get_config_dict
+    config_dict, kwargs = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+  File "/home/congcong/miniconda3/envs/openvla-oft/lib/python3.10/site-packages/transformers/configuration_utils.py", line 686, in _get_config_dict
+    resolved_config_file = cached_file(
+  File "/home/congcong/miniconda3/envs/openvla-oft/lib/python3.10/site-packages/transformers/utils/hub.py", line 369, in cached_file
+    raise EnvironmentError(
+OSError: /home/congcong/yanzhengyang/aloha_adjust_bottle_100000 does not appear to have a file named config.json. Checkout 'https://huggingface.co//home/congcong/yanzhengyang/aloha_adjust_bottle_100000/tree/None' for available files.
+Sun Aug 17 00:43:35 2025       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.129.03             Driver Version: 535.129.03   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  NVIDIA H800                    On  | 00000000:D1:00.0 Off |                    0 |
+| N/A   32C    P0              67W / 700W |      4MiB / 81559MiB |      0%      Default |
+|                                         |                      |             Disabled |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+2025-08-17 00:43:39.728561: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-08-17 00:43:39.762293: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2025-08-17 00:43:39.762319: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2025-08-17 00:43:39.763558: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2025-08-17 00:43:39.769106: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI AVX512_BF16 AVX_VNNI AMX_TILE AMX_INT8 AMX_BF16 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-08-17 00:43:40.859106: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+Using ALOHA constants:
+  NUM_ACTIONS_CHUNK = 25
+  ACTION_DIM = 14
+  PROPRIO_DIM = 14
+  ACTION_PROPRIO_NORMALIZATION_TYPE = bounds
+If needed, manually set the correct constants in `prismatic/vla/constants.py`!
+2025-08-17 00:43:46.006875: W tensorflow/core/common_runtime/gpu/gpu_device.cc:2348] TensorFlow was not built with CUDA kernel binaries compatible with compute capability 9.0. CUDA kernels will be jit-compiled from PTX, which could take 30 minutes or longer.
+Instantiating pretrained VLA policy...
+Created backup of original config at: /home/congcong/yanzhengyang/aloha_adjust_bottle_100000/config.json.back.20250817_004355
+Updated config.json at: /home/congcong/yanzhengyang/aloha_adjust_bottle_100000/config.json
+Changes made:
+  - Set AutoConfig to "configuration_prismatic.OpenVLAConfig"
+  - Set AutoModelForVision2Seq to "modeling_prismatic.OpenVLAForActionPrediction"
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:00<00:01,  1.68it/s]Loading checkpoint shards:  50%|█████     | 2/4 [00:00<00:00,  2.57it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:01<00:00,  3.05it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:01<00:00,  4.08it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:01<00:00,  3.30it/s]
+INFO:     Started server process [3746765]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8777 (Press CTRL+C to quit)
+INFO:     10.22.4.13:42628 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:39582 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58766 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58780 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58796 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58798 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58806 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58816 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58830 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58838 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58850 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58852 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58868 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58870 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58872 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58886 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58890 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58894 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58908 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58914 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58924 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58936 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58940 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58946 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58958 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58970 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58974 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:58990 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59000 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59004 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59008 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59014 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59022 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59024 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59038 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59044 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59060 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59066 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59068 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59072 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59082 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59092 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59106 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59122 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59134 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59138 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:59148 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49260 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49272 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49274 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49284 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49294 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49296 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49298 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49312 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49322 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49332 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49340 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49356 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49370 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49382 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49398 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49412 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49418 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49426 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49428 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49438 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49440 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49452 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49458 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49466 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49476 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49480 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49490 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49494 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49510 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49518 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49524 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49530 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49546 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49550 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49566 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49582 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49590 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49596 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49602 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49614 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49628 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49642 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49654 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49664 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49668 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49676 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49684 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49688 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49696 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49710 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49712 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49722 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49726 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49728 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49874 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49884 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49888 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49898 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49914 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49926 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49928 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49932 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49944 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49948 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49954 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49964 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49972 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49984 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49990 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:49996 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50012 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50018 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50026 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50038 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50050 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50064 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50078 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50088 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50102 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50116 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50120 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50128 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50130 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50136 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50140 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50148 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50152 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50154 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50166 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50174 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50184 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50198 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50208 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50216 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50228 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50238 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50242 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50252 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50266 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50276 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50284 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50300 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50312 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50320 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50324 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50338 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50352 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50366 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50374 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50384 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:50400 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45732 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45748 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45758 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45764 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45772 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45782 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45788 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45798 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45812 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45828 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45830 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45838 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45840 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45842 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45850 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45860 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45862 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45876 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45892 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45894 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45908 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45922 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45934 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45936 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45942 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45954 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45960 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45974 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45984 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:45996 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46000 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46016 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46028 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46032 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46036 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46052 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46068 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46080 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46090 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46098 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46114 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46130 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46144 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46152 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46166 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46182 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46196 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46204 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46208 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46210 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46224 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46240 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46256 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46262 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46264 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46268 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46910 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46916 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46918 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46924 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46940 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46956 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46966 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46976 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46982 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46992 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:46994 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47006 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47020 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47036 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47046 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47048 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47058 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47064 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47074 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47088 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47098 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47108 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47110 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47126 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47140 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47144 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47148 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47158 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47172 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47180 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47190 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47194 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47208 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47222 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47234 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47238 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47242 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47248 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47252 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47256 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47268 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47278 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47280 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47290 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47300 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47304 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47316 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47318 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47322 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47332 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47348 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47352 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47358 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47368 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47376 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47386 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:47400 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34272 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34276 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34292 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34296 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34308 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34314 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34324 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34340 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34352 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34356 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34372 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34374 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34382 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34390 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34396 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34406 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34410 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34420 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34426 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34434 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34444 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34448 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34462 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34464 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34470 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34474 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34476 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34478 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34492 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34494 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34510 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34514 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34524 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34534 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34536 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:34544 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:51950 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:51960 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:51976 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:51986 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:51998 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52008 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52016 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52030 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52042 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52058 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52068 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52082 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52088 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38578 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38584 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38586 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38594 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38606 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38614 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38626 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38640 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38654 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38668 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38670 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38678 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38694 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38702 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38712 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38724 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38736 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38740 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38756 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38760 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38770 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38782 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38784 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38796 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:38810 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52256 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52266 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52268 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52284 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52296 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52306 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52318 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52328 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52334 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52346 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52362 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52372 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52388 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52392 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52406 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52412 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52424 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52428 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52440 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52444 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52448 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52460 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52472 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52486 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52496 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52510 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:52522 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53682 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53690 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53692 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53704 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53708 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53714 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53730 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53746 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53756 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53772 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53776 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53786 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53794 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53800 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53804 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53816 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53832 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53840 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53854 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53864 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53866 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53872 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53876 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53882 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53886 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:53902 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54248 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54258 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54274 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54288 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54302 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54316 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54328 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54342 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54352 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54364 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54368 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54372 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54382 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54392 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54402 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54414 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54422 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54426 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54432 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54444 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54446 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:54458 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33008 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33018 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33022 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33024 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33036 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33050 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33060 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33062 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33068 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33074 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33084 - "POST /act HTTP/1.1" 200 OK
+INFO:     10.22.4.13:33090 - "POST /act HTTP/1.1" 200 OK
