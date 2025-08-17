@@ -14,12 +14,12 @@ from einops import rearrange
 import collections
 from collections import deque
 
-#import rospy
-# from std_msgs.msg import Header
-# from geometry_msgs.msg import Twist
-# from sensor_msgs.msg import JointState, Image
-# from nav_msgs.msg import Odometry
-# from cv_bridge import CvBridge
+import rospy
+from std_msgs.msg import Header
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import JointState, Image
+from nav_msgs.msg import Odometry
+from cv_bridge import CvBridge
 import time
 import threading
 import math
@@ -69,7 +69,7 @@ class GenerateConfig:
     num_open_loop_steps: int = 50                    # Number of actions to execute open-loop before requerying policy
 
     use_vla_server: bool = True                      # Whether to query remote VLA server for actions
-    vla_server_url: Union[str, Path] = "dgx-15"            # Remote VLA server URL (set to 127.0.0.1 if on same machine)
+    vla_server_url: Union[str, Path] = "127.0.0.1"            # Remote VLA server URL (set to 127.0.0.1 if on same machine)
 
     #################################################################################################################
     # ALOHA environment-specific parameters
@@ -77,7 +77,7 @@ class GenerateConfig:
     num_rollouts_planned: int = 50                   # Number of test rollouts
     max_steps: int = 12                            # Max number of steps per rollout
     use_relative_actions: bool = False               # Whether to use relative actions (delta joint angles)
-    publish_rate: int = 25
+    publish_rate: int = 100
     #################################################################################################################
     # Utils
     #################################################################################################################
@@ -88,7 +88,7 @@ class GenerateConfig:
     #################################################################################################################
     # Task Specifications
     #################################################################################################################
-    task_description :str = "pick up the bottle with right or left gripper"
+    task_description :str = "Grab the bottle with right or left gripper"
     # fmt: on
 
 inference_thread = None
@@ -152,10 +152,10 @@ def run_openvla_oft(
     right0 = [-0.00133514404296875, 0.00438690185546875, 0.034523963928222656, -0.053597450256347656, -0.00476837158203125, -0.00209808349609375, 3.557830810546875]
    # left1 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3393220901489258]
    # right1 = [-0.00133514404296875, 0.00247955322265625, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3397035598754883]
-    
+    ros_operator.puppet_arm_publish_continuous(left0,right0)
     ds, info = tfds.load(
-        'adjust_bottle_tfds:1.0.0',  # 数据集名称
-        data_dir='/home/congcong/yanzhengyang',  # 新目录路径
+        'aloha_adjust_bottle_tfds:1.0.0',  # 数据集名称
+        data_dir='/home/agilex/cobot_magic',  # 新目录路径
         split='train',  # 指定拆分，例如 'train' 或 'test'
         with_info=True  # 获取数据集元数据
     )
@@ -163,6 +163,9 @@ def run_openvla_oft(
     sample = next(ds_iter)
     l1_loss = 0
     num = 0
+    left0.extend(right0)
+    last_action = left0
+    actions = []
     try:
         while t < cfg.max_steps:
             # Get step start time (used to compute how much to sleep between steps)
@@ -182,63 +185,86 @@ def run_openvla_oft(
                     
                     # Extract images from the dataset sample
                     # Typical structure: sample['steps'][0]['observation']['image']
+                
+                # for i,step in enumerate(sample['steps']):
+                #     #i = t
+                #     if num != 0 and num % 25 != 0:
+                #         break
+                #     if i<num:
+                #         continue
+                #     else:
+                #         img_front = step['observation']['image'].numpy()
+                #         img_left = step['observation']['left_wrist_image'].numpy()
+                #         img_right = step['observation']['right_wrist_image'].numpy()
+                #         qpos = step['observation']['state'].numpy()
+                #         break
                 for i,step in enumerate(sample['steps']):
-                    if i != 0 or i % 25 != 0:
-                        continue
-                    img_front = step['observation']['image'].numpy()
-                    img_left = step['observation']['left_wrist_image'].numpy()
-                    img_right = step['observation']['right_wrist_image'].numpy()
-                    qpos = step['observation']['state'].numpy()
+                    #i = t
+                    if num != 0 and num % 25 != 0:
+                        break
+                    if num <= i < num + 25:
+                        qpos = step['observation']['state'].numpy()
+                        actions.append(qpos)
+                print()
+                    #task_description = step["language_instruction"].numpy()
                 # Get qpos (joint positions) - you may need to adapt this based on your robot setup
                 #qpos = np.concatenate([left0, right0])  # Use initialized positions as fallback
-                observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
-                observation["instruction"] = task_description
+                #observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
+                #observation["instruction"] = task_description
                 # Save processed images for replay
-                replay_images_resized.append(img_resized)
-                replay_images_left_wrist_resized.append(left_wrist_resized)
-                replay_images_right_wrist_resized.append(right_wrist_resized)
+                #replay_images_resized.append(img_resized)
+                #replay_images_left_wrist_resized.append(left_wrist_resized)
+                #replay_images_right_wrist_resized.append(right_wrist_resized)
 
                 # Query model to get action
                 model_query_start_time = time.time()
-                actions = get_action_from_server(observation, server_endpoint)
+                #actions = get_action_from_server(observation, server_endpoint)
                 actions = actions[: cfg.num_open_loop_steps]
                 total_model_query_time += time.time() - model_query_start_time
                 action_queue.extend(actions)
+                actions = []
 
-            # Get action from queue
-            #rate = rospy.Rate(cfg.publish_rate)
-            #while len(action_queue) > 0 and not rospy.is_shutdown():
-            #    action = action_queue.popleft()
-            #    left_action = action[:7]
-            #    right_action = action [7:14]
-            #    ros_operator.puppet_arm_publish_continuous(left_action, right_action)
-                #rate.sleep()
-            
+            #Get action from queue
+            rate = rospy.Rate(100)
+            while len(action_queue) > 0 and not rospy.is_shutdown():
+               action = action_queue.popleft()
+               new_action = np.linspace(last_action, action, 20)
+               last_action = action
+               #left_action = action[:7]
+               #right_action = action[7:14]
+               #ros_operator.puppet_arm_publish_linear(left_action, right_action)
+              #rate.sleep()
+               for act in new_action:
+                left_action = act[:7]
+                right_action = act [7:14]
+                ros_operator.puppet_arm_publish(left_action, right_action)
+                rate.sleep()
+               num += 1
             # Calculate L1 loss between predicted actions and current state
-            while len(action_queue) > 0:
-                # Get the first action from queue for L1 loss calculation
-                predicted_action = action_queue.popleft()  # Use first action as prediction
+            # while len(action_queue) > 0:
+            #     # Get the first action from queue for L1 loss calculation
+            #     predicted_action = action_queue.popleft()  # Use first action as prediction
                 
-                # Extract left and right arm actions
-                predicted_left_action = predicted_action[:7]
-                predicted_right_action = predicted_action[7:14]
+            #     # Extract left and right arm actions
+            #     predicted_left_action = predicted_action[:7]
+            #     predicted_right_action = predicted_action[7:14]
                 
-                # Use current qpos as ground truth (current state)
-                # This represents the "no change" baseline
-                ground_truth_left = qpos[:7]   # First 7 joints for left arm
-                ground_truth_right = qpos[7:14]  # Next 7 joints for right arm
+            #     # Use current qpos as ground truth (current state)
+            #     # This represents the "no change" baseline
+            #     ground_truth_left = qpos[:7]   # First 7 joints for left arm
+            #     ground_truth_right = qpos[7:14]  # Next 7 joints for right arm
                 
-                # Calculate L1 loss for left and right arms
-                left_arm_l1_loss = np.mean(np.abs(np.array(predicted_left_action) - np.array(ground_truth_left)))
-                right_arm_l1_loss = np.mean(np.abs(np.array(predicted_right_action) - np.array(ground_truth_right)))
+            #     # Calculate L1 loss for left and right arms
+            #     left_arm_l1_loss = np.mean(np.abs(np.array(predicted_left_action) - np.array(ground_truth_left)))
+            #     right_arm_l1_loss = np.mean(np.abs(np.array(predicted_right_action) - np.array(ground_truth_right)))
                 
-                # Calculate total L1 loss
-                total_l1_loss = (left_arm_l1_loss + right_arm_l1_loss) / 2.0
-                l1_loss += total_l1_loss
-                # Print L1 loss information
-                print(f"Step {t}: L1 Loss - Left: {left_arm_l1_loss:.6f}, Right: {right_arm_l1_loss:.6f}, Total: {total_l1_loss:.6f}")
-                print(f"Total L1 loss: {l1_loss:.6f}")
-                num += 1
+            #     # Calculate total L1 loss
+            #     total_l1_loss = (left_arm_l1_loss + right_arm_l1_loss) / 2.0
+            #     l1_loss += total_l1_loss
+            #     # Print L1 loss information
+            #     print(f"Step {t}: L1 Loss - Left: {left_arm_l1_loss:.6f}, Right: {right_arm_l1_loss:.6f}, Total: {total_l1_loss:.6f}")
+            #     print(f"Total L1 loss: {l1_loss:.6f}")
+            #     num += 1
                 # Alternative: Calculate L1 loss using the imported function if we have tokenized actions
                 # Note: This would require converting actions to token IDs first
                 # if 'action_tokenizer' in locals():
@@ -636,7 +662,7 @@ def get_arguments():
     parser.add_argument('--use_robot_base', action='store', type=bool, help='use_robot_base',
                         default=False, required=False)
     parser.add_argument('--publish_rate', action='store', type=int, help='publish_rate',
-                        default=25, required=False)
+                        default=100, required=False)
     parser.add_argument('--pos_lookahead_step', action='store', type=int, help='pos_lookahead_step',
                         default=0, required=False)
     parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size',
@@ -686,10 +712,10 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
         raise NotImplemented
 
 def main():
-    #args = get_arguments()
-    #ros_operator = RosOperator(args)
-    #cfg = GenerateConfig
-    ros_operator = None
+    args = get_arguments()
+    ros_operator = RosOperator(args)
+    cfg = GenerateConfig
+    #ros_operator = None
     eval_aloha(GenerateConfig,ros_operator)
     #pisode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
     #        run_episode(cfg, task_description, server_endpoint, resize_size, log_file)
