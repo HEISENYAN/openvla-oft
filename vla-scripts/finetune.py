@@ -965,7 +965,6 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     # We assume that the model takes as input one third-person camera image and 1 or 2 optional wrist camera image(s)
     use_wrist_image = cfg.num_images_in_input > 1
-
     # Create training and optional validation datasets
     batch_transform = RLDSBatchTransform(
         action_tokenizer,
@@ -1027,14 +1026,18 @@ def finetune(cfg: FinetuneConfig) -> None:
         "next_actions_accuracy": deque(maxlen=cfg.grad_accumulation_steps),
         "next_actions_l1_loss": deque(maxlen=cfg.grad_accumulation_steps),
     }
-
+    print("start training")
     # Start training
     with tqdm.tqdm(total=cfg.max_steps, leave=False) as progress:
         vla.train()
+        print(f"vla.train()")
         optimizer.zero_grad()
+        print(f"optimizer.zero_grad()")
         for batch_idx, batch in enumerate(dataloader):
             # Compute training metrics and loss
+            print(f"batch_idx: {batch_idx}")
             compute_diffusion_l1 = cfg.use_diffusion and batch_idx % cfg.diffusion_sample_freq == 0
+            print(f"compute_diffusion_l1: {compute_diffusion_l1}")
             loss, metrics = run_forward_pass(
                 vla=vla,
                 action_head=action_head,
@@ -1051,12 +1054,14 @@ def finetune(cfg: FinetuneConfig) -> None:
                 compute_diffusion_l1=compute_diffusion_l1,
                 num_diffusion_steps_train=cfg.num_diffusion_steps_train if cfg.use_diffusion else None,
             )
-
+            print(f"loss: {loss}")
             # Normalize loss to account for gradient accumulation
             normalized_loss = loss / cfg.grad_accumulation_steps
-
+            print(f"loss: {loss}")
             # Backward pass
             normalized_loss.backward()
+
+            print(f"normalized_loss: {normalized_loss}")
 
             # Store recent train metrics
             for metric_name, value in metrics.items():
@@ -1068,7 +1073,7 @@ def finetune(cfg: FinetuneConfig) -> None:
 
             # Compute smoothened train metrics
             smoothened_metrics = compute_smoothened_metrics(recent_metrics)
-
+            print(f"smoothened_metrics: {smoothened_metrics}")
             # Push Metrics to W&B (every wandb_log_freq gradient steps)
             log_step = gradient_step_idx if not cfg.resume else cfg.resume_step + gradient_step_idx
             if distributed_state.is_main_process and log_step % cfg.wandb_log_freq == 0:
