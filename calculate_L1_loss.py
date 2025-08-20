@@ -75,7 +75,7 @@ class GenerateConfig:
     # ALOHA environment-specific parameters
     #################################################################################################################
     num_rollouts_planned: int = 50                   # Number of test rollouts
-    max_steps: int = 12                            # Max number of steps per rollout
+    max_steps: int = 300                           # Max number of steps per rollout
     use_relative_actions: bool = False               # Whether to use relative actions (delta joint angles)
     publish_rate: int = 100
     #################################################################################################################
@@ -132,173 +132,192 @@ def run_openvla_oft(
     ros_operator
 ):
     # Initialize action queue
-    action_queue = deque(maxlen=cfg.num_open_loop_steps)
+    action_queue = deque() # maxlen=cfg.num_open_loop_steps
 
     # Setup
     t = 0
-    curr_state = None
-    replay_images = []
-    replay_images_resized = []
-    replay_images_left_wrist_resized = []
-    replay_images_right_wrist_resized = []
-
-    # Fetch initial robot state (but sleep first so that robot stops moving)
-
+   
+    
     episode_start_time = time.time()
     total_model_query_time = 0.0
-    #Initialization
-    #rate = rospy.Rate(cfg.publish_rate)
     left0 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, 3.557830810546875]
     right0 = [-0.00133514404296875, 0.00438690185546875, 0.034523963928222656, -0.053597450256347656, -0.00476837158203125, -0.00209808349609375, 3.557830810546875]
-   # left1 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3393220901489258]
-   # right1 = [-0.00133514404296875, 0.00247955322265625, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3397035598754883]
     ros_operator.puppet_arm_publish_continuous(left0,right0)
     ds, info = tfds.load(
-        'aloha_adjust_bottle_tfds:1.0.0',  # 数据集名称
+        'aloha_adjust_bottle_tfds:1.0.1',  # 数据集名称
         data_dir='/home/agilex/cobot_magic',  # 新目录路径
         split='train',  # 指定拆分，例如 'train' 或 'test'
         with_info=True  # 获取数据集元数据
     )
+    #ds.shuffle(buffer_size=50)
     ds_iter = iter(ds.take(1))  # Take one sample
     sample = next(ds_iter)
-    l1_loss = 0
-    num = 0
-    left0.extend(right0)
-    last_action = left0
-    actions = []
-    try:
-        while t < cfg.max_steps:
-            # Get step start time (used to compute how much to sleep between steps)
-            step_start_time = time.time()
+    step_iter = iter(sample['steps'])
+    while t < cfg.max_steps:
+        obs_actions = []
+        obs_img_fronts = []
+        obs_img_lefts = []
+        obs_img_rights = []
+        obs_states = []
 
-            # If action queue is empty, requery model
-            if len(action_queue) == 0:
-                # Prepare observation
-                # get qpos and image input
+        
+        for _ in range(25):
+            try:
+                step = next(step_iter)
+            except:
+                assert False
 
-                # Load TFDS dataset for image inputs
-                
-                
-                # Load a robotics dataset from TFDS (example: bridge_dataset)
-                # You can replace 'bridge_dataset' with other available robotics datasets
-                
-                    
-                    # Extract images from the dataset sample
-                    # Typical structure: sample['steps'][0]['observation']['image']
-                
-                # for i,step in enumerate(sample['steps']):
-                #     #i = t
-                #     if num != 0 and num % 25 != 0:
-                #         break
-                #     if i<num:
-                #         continue
-                #     else:
-                #         img_front = step['observation']['image'].numpy()
-                #         img_left = step['observation']['left_wrist_image'].numpy()
-                #         img_right = step['observation']['right_wrist_image'].numpy()
-                #         qpos = step['observation']['state'].numpy()
-                #         break
-                for i,step in enumerate(sample['steps']):
-                    #i = t
-                    if num != 0 and num % 25 != 0:
-                        break
-                    if num <= i < num + 25:
-                        qpos = step['observation']['state'].numpy()
-                        actions.append(qpos)
-                print()
-                    #task_description = step["language_instruction"].numpy()
-                # Get qpos (joint positions) - you may need to adapt this based on your robot setup
-                #qpos = np.concatenate([left0, right0])  # Use initialized positions as fallback
-                #observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
-                #observation["instruction"] = task_description
-                # Save processed images for replay
-                #replay_images_resized.append(img_resized)
-                #replay_images_left_wrist_resized.append(left_wrist_resized)
-                #replay_images_right_wrist_resized.append(right_wrist_resized)
+            obs_actions.append(step['action'].numpy())
+            obs_img_fronts.append(step['observation']['image'].numpy())
+            obs_img_lefts.append(step['observation']['left_wrist_image'].numpy())
+            obs_img_rights.append(step['observation']['right_wrist_image'].numpy())
+            obs_states.append(step['observation']['state'].numpy())
 
-                # Query model to get action
-                model_query_start_time = time.time()
-                #actions = get_action_from_server(observation, server_endpoint)
-                actions = actions[: cfg.num_open_loop_steps]
-                total_model_query_time += time.time() - model_query_start_time
-                action_queue.extend(actions)
-                actions = []
+        observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(obs_img_fronts[0],obs_img_lefts[0],obs_img_rights[0],obs_states[0],resize_size)
+        observation["instruction"] = task_description
 
-            #Get action from queue
-            rate = rospy.Rate(100)
-            while len(action_queue) > 0 and not rospy.is_shutdown():
-               action = action_queue.popleft()
-               new_action = np.linspace(last_action, action, 20)
-               last_action = action
-               #left_action = action[:7]
-               #right_action = action[7:14]
-               #ros_operator.puppet_arm_publish_linear(left_action, right_action)
-              #rate.sleep()
-               for act in new_action:
-                left_action = act[:7]
-                right_action = act [7:14]
+        actions = get_action_from_server(observation, server_endpoint)
+        #actions = obs_actions
+
+
+        # predicted_actions = torch.from_numpy(np.array(actions))  
+        # ground_truth_actions = torch.from_numpy(np.array(obs_actions)) 
+        # actions = obs_actions
+        #ground_truth_curr_action = ground_truth_actions[:, 0]
+        #predicted_curr_action = predicted_actions[:, 0]
+        #ground_truth_next_actions = ground_truth_actions[:, 1:]
+        #predicted_next_actions = predicted_actions[:, 1:]
+        #print(f"Step {t}, l1 curr_action_l1_loss = {curr_action_l1_loss}, l1 next_actions_l1_loss = {next_actions_l1_loss}")
+        t += 25
+        rate = rospy.Rate(50)
+        while not rospy.is_shutdown():
+            for action in actions:
+                left_action = action[:7]
+                right_action = right0
+                # ros_operator.puppet_arm_publish_continuous(left_action, right_action)
                 ros_operator.puppet_arm_publish(left_action, right_action)
-                rate.sleep()
-               num += 1
-            # Calculate L1 loss between predicted actions and current state
-            # while len(action_queue) > 0:
-            #     # Get the first action from queue for L1 loss calculation
-            #     predicted_action = action_queue.popleft()  # Use first action as prediction
-                
-            #     # Extract left and right arm actions
-            #     predicted_left_action = predicted_action[:7]
-            #     predicted_right_action = predicted_action[7:14]
-                
-            #     # Use current qpos as ground truth (current state)
-            #     # This represents the "no change" baseline
-            #     ground_truth_left = qpos[:7]   # First 7 joints for left arm
-            #     ground_truth_right = qpos[7:14]  # Next 7 joints for right arm
-                
-            #     # Calculate L1 loss for left and right arms
-            #     left_arm_l1_loss = np.mean(np.abs(np.array(predicted_left_action) - np.array(ground_truth_left)))
-            #     right_arm_l1_loss = np.mean(np.abs(np.array(predicted_right_action) - np.array(ground_truth_right)))
-                
-            #     # Calculate total L1 loss
-            #     total_l1_loss = (left_arm_l1_loss + right_arm_l1_loss) / 2.0
-            #     l1_loss += total_l1_loss
-            #     # Print L1 loss information
-            #     print(f"Step {t}: L1 Loss - Left: {left_arm_l1_loss:.6f}, Right: {right_arm_l1_loss:.6f}, Total: {total_l1_loss:.6f}")
-            #     print(f"Total L1 loss: {l1_loss:.6f}")
-            #     num += 1
-                # Alternative: Calculate L1 loss using the imported function if we have tokenized actions
-                # Note: This would require converting actions to token IDs first
-                # if 'action_tokenizer' in locals():
-                #     # Convert continuous actions to token IDs (if needed)
-                #     # predicted_tokens = action_tokenizer.encode_actions_to_token_ids(predicted_action)
-                #     # ground_truth_tokens = action_tokenizer.encode_actions_to_token_ids(np.concatenate([ground_truth_left, ground_truth_right]))
-                #     # l1_loss = compute_actions_l1_loss(action_tokenizer, predicted_tokens, ground_truth_tokens, mask)
-                #     pass
-            t += 1
-        print(f"Average L1 loss: {l1_loss/num:.6f}")
-    except (KeyboardInterrupt, Exception) as e:
-        print(e)
+                rate.sleep() 
+            break
+        continue
+    return 
 
-    episode_end_time = time.time()
+        # Apply temporal ensembling to smooth the action chunk
+        # Initialize action history if it doesn't exist
+        # if not hasattr(get_action_from_server, 'action_history'):
+        #     get_action_from_server.action_history = deque(maxlen=2)  # Keep last 5 action chunks
+        
+        # Add current actions to history
+        # get_action_from_server.action_history.append(actions)
+        
+        # # Apply temporal smoothing if we have enough history
+        # if len(get_action_from_server.action_history) >= 2:
+        #     # Simple exponential moving average for temporal ensembling
+        #     alpha = 0.7  # Smoothing factor (0.7 for current, 0.3 for history)
+        #     smoothed_actions = []
+            
+        #     for i in range(len(actions)):
+        #         action_timestep = []
+        #         for j in range(len(actions[i])):
+        #             # Weighted average: current action gets higher weight
+        #             current_val = actions[i][j]
+        #             # Get average of previous predictions for this timestep and joint
+        #             prev_vals = [hist[i][j] for hist in list(get_action_from_server.action_history)[:-1]]
+        #             if prev_vals:
+        #                 prev_avg = np.mean(prev_vals)
+        #                 # Apply exponential moving average
+        #                 smoothed_val = alpha * current_val + (1 - alpha) * prev_avg
+        #             else:
+        #                 smoothed_val = current_val
+        #             action_timestep.append(smoothed_val)
+        #         smoothed_actions.append(action_timestep)
+            
+        #     actions = smoothed_actions
+        #     print(f"Applied temporal ensembling with alpha={alpha}")
+        
 
-    # Get success feedback from user
-    user_input = input("Success? Enter 'y' or 'n': ")
-    success = True if user_input.lower() == "y" else False
+    #         actions = actions[: cfg.num_open_loop_steps]
+    #         #total_model_query_time += time.time() - model_query_start_time
+    #         action_queue.extend(actions)
+    #         # actions = []`
+            
+    #         #Get action from queue
+    #         rate = rospy.Rate(30)
+    #         while len(action_queue) > 0 and not rospy.is_shutdown():
+    #            action = action_queue.popleft()
+    #            # new_action = np.linspace(last_action, action, 20)
+    #            # last_action = action
+    #            left_action = action[:7]
+    #            right_action = action[7:14]
+    #            # TODO
+    #            # ros_operator.puppet_arm_publish_continuous(left_action, right_action)
+    #            ros_operator.puppet_arm_publish(left_action, right_action)
+    #            num += 1
+    #            rate.sleep() 
+    #            # rate.sleep()
+    #         #    for act in new_action:
+    #         #     left_action = act[:7]
+    #         #     right_action = act [7:14]
+    #         #     ros_operator.puppet_arm_publish(left_action, right_action)
+    #         #     rate.sleep()
+    #         #    num += 1
+    #         # Calculate L1 loss between predicted actions and current state
+    #         # while len(action_queue) > 0:
+    #         #     # Get the first action from queue for L1 loss calculation
+    #         #     predicted_action = action_queue.popleft()  # Use first action as prediction
+    #         #     # Extract left and right arm actions
+    #         #     predicted_left_action = predicted_action[:7]
+    #         #     predicted_right_action = predicted_action[7:14]
+                
+    #         #     # Use current qpos as ground truth (current state)
+    #         #     # This represents the "no change" baseline
+    #         #     ground_truth_left = qpos[:7]   # First 7 joints for left arm
+    #         #     ground_truth_right = qpos[7:14]  # Next 7 joints for right arm
+                
+    #         #     # Calculate L1 loss for left and right arms
+    #         #     left_arm_l1_loss = np.mean(np.abs(np.array(predicted_left_action) - np.array(ground_truth_left)))
+    #         #     right_arm_l1_loss = np.mean(np.abs(np.array(predicted_right_action) - np.array(ground_truth_right)))
+                
+    #         #     # Calculate total L1 loss
+    #         #     total_l1_loss = (left_arm_l1_loss + right_arm_l1_loss) / 2.0
+    #         #     l1_loss += total_l1_loss
+    #         #     # Print L1 loss information
+    #         #     print(f"Step {t}: L1 Loss - Left: {left_arm_l1_loss:.6f}, Right: {right_arm_l1_loss:.6f}, Total: {total_l1_loss:.6f}")
+    #         #     print(f"Total L1 loss: {l1_loss:.6f}")
+    #         #     num += 1
+    #             # Alternative: Calculate L1 loss using the imported function if we have tokenized actions
+    #             # Note: This would require converting actions to token IDs first
+    #             # if 'action_tokenizer' in locals():
+    #             #     # Convert continuous actions to token IDs (if needed)
+    #             #     # predicted_tokens = action_tokenizer.encode_actions_to_token_ids(predicted_action)
+    #             #     # ground_truth_tokens = action_tokenizer.encode_actions_to_token_ids(np.concatenate([ground_truth_left, ground_truth_right]))
+    #             #     # l1_loss = compute_actions_l1_loss(action_tokenizer, predicted_tokens, ground_truth_tokens, mask)
+    #             #     pass
+    #         # t += 1
+    #     # print(f"Average L1 loss: {l1_loss/num:.6f}")
+    # except (KeyboardInterrupt, Exception) as e:
+    #     print(e)
 
-    # Calculate episode statistics
-    episode_stats = {
-        "success": success,
-        "total_steps": t,
-        "model_query_time": total_model_query_time,
-        "episode_duration": episode_end_time - episode_start_time,
-    }
+    # episode_end_time = time.time()
 
-    return (
-        episode_stats,
-        replay_images,
-        replay_images_resized,
-        replay_images_left_wrist_resized,
-        replay_images_right_wrist_resized,
-    )
+    # # Get success feedback from user
+    # user_input = input("Success? Enter 'y' or 'n': ")
+    # success = True if user_input.lower() == "y" else False
+
+    # # Calculate episode statistics
+    # episode_stats = {
+    #     "success": success,
+    #     "total_steps": t,
+    #     "model_query_time": total_model_query_time,
+    #     "episode_duration": episode_end_time - episode_start_time,
+    # }
+
+    # return (
+    #     episode_stats,
+    #     # replay_images,
+    #     # replay_images_resized,
+    #     # replay_images_left_wrist_resized,
+    #     # replay_images_right_wrist_resized,
+    # )
 class RosOperator:
     def __init__(self, args):
         self.robot_base_deque = None
@@ -583,9 +602,9 @@ class RosOperator:
 
     def init_ros(self):
         rospy.init_node('joint_state_publisher', anonymous=True)
-        rospy.Subscriber(self.args.img_left_topic, Image, self.img_left_callback, queue_size=1000, tcp_nodelay=True)
-        rospy.Subscriber(self.args.img_right_topic, Image, self.img_right_callback, queue_size=1000, tcp_nodelay=True)
-        rospy.Subscriber(self.args.img_front_topic, Image, self.img_front_callback, queue_size=1000, tcp_nodelay=True)
+        #rospy.Subscriber(self.args.img_left_topic, Image, self.img_left_callback, queue_size=1000, tcp_nodelay=True)
+        #rospy.Subscriber(self.args.img_right_topic, Image, self.img_right_callback, queue_size=1000, tcp_nodelay=True)
+        #rospy.Subscriber(self.args.img_front_topic, Image, self.img_front_callback, queue_size=1000, tcp_nodelay=True)
         if self.args.use_depth_image:
             rospy.Subscriber(self.args.img_left_depth_topic, Image, self.img_left_depth_callback, queue_size=1000, tcp_nodelay=True)
             rospy.Subscriber(self.args.img_right_depth_topic, Image, self.img_right_depth_callback, queue_size=1000, tcp_nodelay=True)
