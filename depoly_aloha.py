@@ -14,12 +14,12 @@ from einops import rearrange
 import collections
 from collections import deque
 
-#import rospy
-# from std_msgs.msg import Header
-# from geometry_msgs.msg import Twist
-# from sensor_msgs.msg import JointState, Image
-# from nav_msgs.msg import Odometry
-# from cv_bridge import CvBridge
+import rospy
+from std_msgs.msg import Header
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import JointState, Image
+from nav_msgs.msg import Odometry
+from cv_bridge import CvBridge
 import time
 import threading
 import math
@@ -40,6 +40,9 @@ from typing import Optional, Union
 
 import draccus
 import tqdm
+
+import tty
+import termios, select
 
 from experiments.robot.openvla_utils import (
     get_action_from_server,
@@ -115,9 +118,9 @@ def prepare_observation(img,left_wrist_img, right_wrist_img,qpos,resize_size):
     # Prepare observations dict
     observation = {
         "full_image": img_resized,
-        "left_wrist_image": left_wrist_img_resized,
-        "right_wrist_image": right_wrist_img_resized,
-        "state": qpos,
+        #"left_wrist_image": left_wrist_img_resized,
+        #"right_wrist_image": right_wrist_img_resized,
+        #"state": qpos,
     }
 
     return observation, img_resized, left_wrist_img_resized, right_wrist_img_resized
@@ -146,13 +149,17 @@ def run_openvla_oft(
     total_model_query_time = 0.0
     #Initialization
     #rate = rospy.Rate(cfg.publish_rate)
+    right0 = [0.0399 ,1.6135, -0.6615 , 0.2947  ,0.2741 ,-0.1531 , 0.0597]
     left0 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, 3.557830810546875]
-    right0 = [-0.00133514404296875, 0.00438690185546875, 0.034523963928222656, -0.053597450256347656, -0.00476837158203125, -0.00209808349609375, 3.557830810546875]
-   # left1 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3393220901489258]
-   # right1 = [-0.00133514404296875, 0.00247955322265625, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, -0.3397035598754883]
-    
+    #right0 = [-0.00133514404296875, 0.00438690185546875, 0.034523963928222656, -0.053597450256347656, -0.00476837158203125, -0.00209808349609375, 3.557830810546875]
+
     ros_operator.puppet_arm_publish_continuous(left0, right0)
+    input("按回车开始测试")
     try:
+        print("按空格结束采集")
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        tty.setcbreak(fd)
         while t < cfg.max_steps:
             # Get step start time (used to compute how much to sleep between steps)
             step_start_time = time.time()
@@ -173,35 +180,41 @@ def run_openvla_oft(
                         print_flag = True
                         (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
                            puppet_arm_left, puppet_arm_right, robot_base) = result
-                        print()
+                        #print()
                         qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
                         break
                 observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
-                observation["instruction"] = task_description
+                observation["instruction"] = "Insert the square into the stick."
                 # Save processed images for replay
                 replay_images_resized.append(img_resized)
                 replay_images_left_wrist_resized.append(left_wrist_resized)
                 replay_images_right_wrist_resized.append(right_wrist_resized)
 
                 # Query model to get action
-                model_query_start_time = time.time()
                 actions = get_action_from_server(observation, server_endpoint)
                 actions = actions[: cfg.num_open_loop_steps]
-                total_model_query_time += time.time() - model_query_start_time
                 action_queue.extend(actions)
 
             # Get action from queue
             #rate = rospy.Rate(cfg.publish_rate)
+            rate = rospy.Rate(50)
             while len(action_queue) > 0 and not rospy.is_shutdown():
                 action = action_queue.popleft()
-                left_action = action[:7]
-                right_action = action [7:14]
-                ros_operator.puppet_arm_publish_continuous(left_action, right_action)
-                #rate.sleep()
+                left_action = left0
+                right_action = action #[7:14]
+                ros_operator.puppet_arm_publish(left_action, right_action)
+                rate.sleep()
             t += 1
-
-    except (KeyboardInterrupt, Exception) as e:
-        print(e)
+            r, w, x = select.select([sys.stdin], [], [], 0)
+            if r:
+                key = sys.stdin.read(1)
+                if key == ' ':
+                    print("结束单次测试")
+                    break
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        termios.tcflush(fd, termios.TCIFLUSH)
+    except:
+        pass
 
     episode_end_time = time.time()
 
@@ -213,8 +226,8 @@ def run_openvla_oft(
     episode_stats = {
         "success": success,
         "total_steps": t,
-        "model_query_time": total_model_query_time,
-        "episode_duration": episode_end_time - episode_start_time,
+        #"model_query_time": total_model_query_time,
+        #"episode_duration": episode_end_time - episode_start_time,
     }
 
     return (
@@ -611,7 +624,9 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
 
     # Set random seed
     #set_seed_everywhere(cfg.seed)
-
+    success_episode = 0
+    total_episodes = 0
+    success_rate = 0
     # Setup logging
     #log_file, local_log_filepath, run_id = setup_logging(cfg)
 
@@ -629,18 +644,30 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
 
     #Start Policy:
     if cfg.policy_type == "openvla-oft":
+
     #Run policy
-        episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
-            run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
-        )
+        while True:
+            
+            episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
+                run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
+            )
+            if episode_stats["success"]:
+                success_episode += 1
+            total_episodes += 1
+            success_rate = success_episode / total_episodes
+            print("="*100)
+            print("当前测试次数:", total_episodes)
+            print("此次是否成功:", episode_stats["success"])
+            print("当前成功率:", success_rate*100, "%")
+            print("当前成功次数:", success_episode, "总测试次数:", total_episodes)
+            #nput("按回车开始下一次测试")
     else:
         raise NotImplemented
 
 def main():
-    #args = get_arguments()
-    #ros_operator = RosOperator(args)
-    #cfg = GenerateConfig
-    ros_operator = None
+    args = get_arguments()
+    ros_operator = RosOperator(args)
+    cfg = GenerateConfig
     eval_aloha(GenerateConfig,ros_operator)
     #pisode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
     #        run_episode(cfg, task_description, server_endpoint, resize_size, log_file)
