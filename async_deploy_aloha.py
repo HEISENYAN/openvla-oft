@@ -104,7 +104,7 @@ def get_server_endpoint(cfg: GenerateConfig):
     ip_address = socket.gethostbyname(cfg.vla_server_url)
     return f"http://{ip_address}:8777/act"
 
-def prepare_observation(img,left_wrist_img, right_wrist_img,qpos,resize_size):
+def prepare_observation(img, resize_size):
     """Prepare observation for policy input."""
     # Get preprocessed images
     #img = get_aloha_image(obs)
@@ -112,8 +112,6 @@ def prepare_observation(img,left_wrist_img, right_wrist_img,qpos,resize_size):
 
     # Resize images to size expected by model
     img_resized = resize_image_for_policy(img, resize_size)
-    left_wrist_img_resized = resize_image_for_policy(left_wrist_img, resize_size)
-    right_wrist_img_resized = resize_image_for_policy(right_wrist_img, resize_size)
 
     # Prepare observations dict
     observation = {
@@ -123,9 +121,9 @@ def prepare_observation(img,left_wrist_img, right_wrist_img,qpos,resize_size):
         #"state": qpos,
     }
 
-    return observation, img_resized, left_wrist_img_resized, right_wrist_img_resized
+    return observation, img_resized
 
-def run_openvla_oft(
+async def run_openvla_oft(
     cfg: GenerateConfig,
     task_description: str,
     server_endpoint: str,
@@ -133,7 +131,7 @@ def run_openvla_oft(
     ros_operator
 ):
     # action chunk
-    action_queue = deque()
+    action_queue = []
 
     # Setup
     t = 0
@@ -163,43 +161,12 @@ def run_openvla_oft(
         while t < cfg.max_steps:
             # Get step start time (used to compute how much to sleep between steps)
             step_start_time = time.time()
-
-
             ### 这里写一个线程，不断的读取image，然后发送给server，然后得到action，加入到list里面，注意每条数据都需要有一个timestep，我在主进程要读取当前的timestep和这个list
-            result = ros_operator.get_frame()
-            if not result:
-                if print_flag:
-                    print("syn fail")
-                    print_flag = False
-                #rate.sleep()
-                continue
-            else:
-                print_flag = True
-                (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-                    puppet_arm_left, puppet_arm_right, robot_base) = result
-                #print()
-                qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
-            observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
-            observation["instruction"] = cfg.task_description
-            # Save processed images for replay
-            replay_images_resized.append(img_resized)
-            replay_images_left_wrist_resized.append(left_wrist_resized)
-            replay_images_right_wrist_resized.append(right_wrist_resized)
-
-            # Query model to get action
-            start_time = time.time()
-            actions = get_action_from_server(observation, server_endpoint)
-            print(time.time() - start_time)
-            ###
-            
-
-            # If action queue is empty, requery model
-            if len(action_queue) == 0:
-                # Prepare observation
-                print_flag = True
+            timestamp = 0
+            async def request_actions():
+                img_front = ros_operator.get_image()
                 while True and not rospy.is_shutdown():
-                    result = ros_operator.get_frame()
-                    if not result:
+                    if not isinstance(img_front, np.ndarray):
                         if print_flag:
                             print("syn fail")
                             print_flag = False
@@ -207,82 +174,47 @@ def run_openvla_oft(
                         continue
                     else:
                         print_flag = True
-                        (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-                           puppet_arm_left, puppet_arm_right, robot_base) = result
-                        #print()
-                        qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
                         break
-                observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
+                observation, img_resized = prepare_observation(img_front,resize_size)
                 observation["instruction"] = cfg.task_description
-                # Save processed images for replay
-                replay_images_resized.append(img_resized)
-                replay_images_left_wrist_resized.append(left_wrist_resized)
-                replay_images_right_wrist_resized.append(right_wrist_resized)
 
-                # Query model to get action
+                # 从服务器获取actions
                 start_time = time.time()
                 actions = get_action_from_server(observation, server_endpoint)
-                print(time.time() - start_time)
-                #第一次推理结束
+                print(time.time() - step_start_time)
 
-                actions = actions[: cfg.num_open_loop_steps]
-                timestamp = 0
-                for action in actions:
-                    action_queue.append([action])
-            async def request_action_chunk():
-                while True and not rospy.is_shutdown():
-                    result = ros_operator.get_frame()
-                    if not result:
-                        if print_flag:
-                            print("syn fail")
-                            print_flag = False
-                        #rate.sleep()
-                        continue
-                    else:
-                        print_flag = True
-                        (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-                            puppet_arm_left, puppet_arm_right, robot_base) = result
-                        break
-                observation, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(img_front,img_left,img_right,qpos,resize_size)
-                observation["instruction"] = cfg.task_description
                 stamp = timestamp
-                actions = get_action_from_server(observation)
-                #stamp = timestamp
+                #把所有的action压到每个timestamp栈里
                 for index, action in enumerate(actions):
-                    while len(action_queue) <= stamp + index +1:
-                        action_queue.append([])
-                    action_queue[stamp + index + 1].append(action)
-            # Get action from queue
-            #rate = rospy.Rate(cfg.publish_rate)
+                    try:
+                        action_queue[stamp + index].append(action)
+                    except:
+                        action_queue.append([action])
+                
+            await request_actions()
+            tasks = []
             rate = rospy.Rate(50)
-            while len(action_queue) > 0 and not rospy.is_shutdown():
-                #action = action_queue.popleft()
-                action = action_queue[timestamp][-1]
+            while True and not rospy.is_shutdown():
+                if len(action_queue) < timestamp:
+                    continue
                 left_action = left0
-                #prev_curr_l1 = np.mean(abs(rigth_action - last_right_action))
-                right_action = action #[7:14]
-                prev_curr_l1 = np.mean(abs(right_action[0:6] - last_right_action[0:6]))
+                action = action_queue[timestamp][-1]
+                right_action = action
 
+                prev_curr_l1 = np.mean(abs(right_action[0:6] - last_right_action[0:6]))
                 assert prev_curr_l1 < 0.5 , "移动角度过大"
                 
                 right_state = np.array(ros_operator.puppet_arm_right_deque[-1].position)
                 prev_state_l1 = np.mean(abs(right_state[0:6] - last_right_action[0:6]))
-
                 assert prev_state_l1 < 0.3, "与目标状态差异过大"
-                last_right_action = right_action
-                timestamp += 1
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                # 调度协程为任务，运行一次
-                loop.create_task(request_action_chunk())
+
                 ros_operator.puppet_arm_publish(left_action, right_action)
-                
-                # 在后台运行事件循环足够时间
-                #loop.run_until_complete(loop.create_task(asyncio.sleep(0.5)))
-                
+                timestamp += 1
+                task = asyncio.create_task(request_actions())
+                tasks.append(task)
                 rate.sleep()
-                
-            t += 1
+
+
             r, w, x = select.select([sys.stdin], [], [], 0)
             if r:
                 key = sys.stdin.read(1)
@@ -466,6 +398,14 @@ class RosOperator:
         self.puppet_arm_publish_thread = threading.Thread(target=self.puppet_arm_publish_continuous, args=(left, right))
         self.puppet_arm_publish_thread.start()
 
+    def get_image(self):
+        frame_time = min([self.img_left_deque[-1].header.stamp.to_sec(), self.img_right_deque[-1].header.stamp.to_sec(), self.img_front_deque[-1].header.stamp.to_sec()])
+        if len(self.img_front_deque) == 0 or self.img_front_deque[-1].header.stamp.to_sec() < frame_time:
+            return False
+        while self.img_front_deque[0].header.stamp.to_sec() < frame_time:
+            self.img_front_deque.popleft()
+        img_front = self.bridge.imgmsg_to_cv2(self.img_front_deque.popleft(), 'passthrough')
+        return img_front
     def get_frame(self):
         if len(self.img_left_deque) == 0 or len(self.img_right_deque) == 0 or len(self.img_front_deque) == 0 or \
                 (self.args.use_depth_image and (len(self.img_left_depth_deque) == 0 or len(self.img_right_depth_deque) == 0 or len(self.img_front_depth_deque) == 0)):
@@ -727,9 +667,9 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
     #Run policy
         while True:
             
-            episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
+            episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = asyncio.run((
                 run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
-            )
+            ))
             if episode_stats["success"]:
                 success_episode += 1
             total_episodes += 1
