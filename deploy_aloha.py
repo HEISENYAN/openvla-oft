@@ -202,6 +202,7 @@ def run_openvla_oft(
             # Get action from queue
             #rate = rospy.Rate(cfg.publish_rate)
             rate = rospy.Rate(50)
+            start_time = time.time()
             while len(action_queue) > 0 and not rospy.is_shutdown():
                 action = action_queue.popleft()
                 left_action = left0
@@ -218,6 +219,7 @@ def run_openvla_oft(
                 last_right_action = right_action
                 ros_operator.puppet_arm_publish(left_action, right_action)
                 rate.sleep()
+            print("执行时间:", time.time() - start_time)
             t += 1
             r, w, x = select.select([sys.stdin], [], [], 0)
             if r:
