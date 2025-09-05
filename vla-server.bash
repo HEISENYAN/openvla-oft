@@ -1,5 +1,5 @@
 python vla-scripts/deploy.py \
-  --pretrained_checkpoint /home/agilex/checkpoints/aloha_game_100/aloha_game_100/openvla-7b+aloha_game+b8+lr-0.0005+lora-r32+dropout-0.0--image_aug--aloha_game_100_8--100000_chkpt \
+  --pretrained_checkpoint /home/agilex/checkpoints/09/04/aloha_game_100_fix/openvla-7b+aloha_game+b8+lr-0.0005+lora-r32+dropout-0.0--image_aug--aloha_game_100_8_fix--100000_chkpt \
   --use_l1_regression False \
   --use_film False \
   --num_images_in_input 1 \
@@ -9,3 +9,5 @@ python vla-scripts/deploy.py \
   --unnorm_key aloha_game
 
     #--pretrained_checkpoint /home/agilex/checkpoints/openvla-7b+aloha_game+b8+lr-0.0005+lora-r32+dropout-0.0--image_aug--aloha_game_300_8--100000_chkpt \
+    # home/agilex/checkpoints/aloha_game_100/09/03/aloha_game_100/openvla-7b+aloha_game+b8+lr-0.0005+lora-r32+dropout-0.0--image_aug--aloha_game_100_8--100000_chkpt
+    #--pretrained_checkpoint /home/agilex/checkpoints/aloha_game_100/aloha_game_100/openvla-7b+aloha_game+b8+lr-0.0005+lora-r32+dropout-0.0--image_aug--aloha_game_100_8--100000_chkpt \

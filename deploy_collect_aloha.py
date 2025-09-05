@@ -24,7 +24,7 @@ import time
 import threading
 import math
 import threading
-import tensorflow_datasets as tfds
+
 
 import sys
 sys.path.append("./")
@@ -41,6 +41,9 @@ from typing import Optional, Union
 import draccus
 import tqdm
 
+import tty
+import termios, select
+
 from experiments.robot.openvla_utils import (
     get_action_from_server,
     resize_image_for_policy,
@@ -50,10 +53,8 @@ from experiments.robot.robot_utils import (
     get_image_resize_size,
     set_seed_everywhere,
 )
-task_config = {'camera_names': ['cam_high', 'cam_left_wrist', 'cam_right_wrist']}
-
-# import l1 loss calculation
-from prismatic.training.train_utils import compute_actions_l1_loss
+task_config = {'camera_names': ['cam_high']}
+import h5py
 
 #main config
 @dataclass
@@ -75,9 +76,9 @@ class GenerateConfig:
     # ALOHA environment-specific parameters
     #################################################################################################################
     num_rollouts_planned: int = 50                   # Number of test rollouts
-    max_steps: int = 300                           # Max number of steps per rollout
+    max_steps: int = 1500                            # Max number of steps per rollout
     use_relative_actions: bool = False               # Whether to use relative actions (delta joint angles)
-    publish_rate: int = 100
+    publish_rate: int = 25
     #################################################################################################################
     # Utils
     #################################################################################################################
@@ -88,8 +89,13 @@ class GenerateConfig:
     #################################################################################################################
     # Task Specifications
     #################################################################################################################
-    task_description :str = "Grab the bottle with right or left gripper"
+    task_description :str = "Insert the square into the stick"
     # fmt: on
+
+    task_dir = './data'
+    task_name = 'aloha_game'
+
+
 
 inference_thread = None
 inference_lock = threading.Lock()
@@ -103,7 +109,7 @@ def get_server_endpoint(cfg: GenerateConfig):
     ip_address = socket.gethostbyname(cfg.vla_server_url)
     return f"http://{ip_address}:8777/act"
 
-def prepare_observation(img,resize_size):
+def prepare_observation(img, resize_size):
     """Prepare observation for policy input."""
     # Get preprocessed images
     #img = get_aloha_image(obs)
@@ -111,8 +117,6 @@ def prepare_observation(img,resize_size):
 
     # Resize images to size expected by model
     img_resized = resize_image_for_policy(img, resize_size)
-    # left_wrist_img_resized = resize_image_for_policy(left_wrist_img, resize_size)
-    # right_wrist_img_resized = resize_image_for_policy(right_wrist_img, resize_size)
 
     # Prepare observations dict
     observation = {
@@ -122,7 +126,70 @@ def prepare_observation(img,resize_size):
         #"state": qpos,
     }
 
-    return observation, img_resized#, left_wrist_img_resized, right_wrist_img_resized
+    return observation, img_resized
+def save_data(timesteps, actions, dataset_path):
+    # 数据字典
+    data_size = len(actions)
+    data_dict = {
+        # 一个是奖励里面的qpos，qvel， effort ,一个是实际发的acition
+        #'/observations/qpos': [],
+        #'/observations/qvel': [],
+        #'/observations/effort': [],
+        '/action': [],
+        #'/base_action': [],
+        '/observations/images/image_front':[],
+        #'/success': []
+        # '/base_action_t265': [],
+    }
+
+
+    # len(action): max_timesteps, len(time_steps): max_timesteps + 1
+    # 动作长度 遍历动作
+    while actions:
+        # 循环弹出一个队列
+        action = actions.pop(0)   # 动作  当前动作
+        ts = timesteps.pop(0)     # 奖励  前一帧
+
+        # 往字典里面添值
+        # Timestep返回的qpos，qvel,effort
+        data_dict['/observations/qpos'].append(ts.observation['qpos'])
+        data_dict['/observations/qvel'].append(ts.observation['qvel'])
+        data_dict['/observations/effort'].append(ts.observation['effort'])
+
+        # 实际发的action
+        data_dict['/action'].append(action)
+
+        # 相机数据
+        # data_dict['/base_action_t265'].append(ts.observation['base_vel_t265'])
+        # for cam_name in args.camera_names:
+        #     data_dict[f'/observations/images/{cam_name}'].append(ts.observation['images'][cam_name])
+        #     if args.use_depth_image:
+        #         data_dict[f'/observations/images_depth/{cam_name}'].append(ts.observation['images_depth'][cam_name])
+
+    t0 = time.time()
+    with h5py.File(dataset_path + '.hdf5', 'w', rdcc_nbytes=1024**2*2) as root:
+        # 文本的属性：
+        # 1 是否仿真
+        # 2 图像是否压缩
+        #
+        root.attrs['sim'] = False
+        root.attrs['compress'] = False
+
+        # 创建一个新的组observations，观测状态组
+        # 图像组
+        obs = root.create_group('observations')
+        image = obs.create_group('images')
+        
+        _ = image.create_dataset("image_front", (data_size, 480, 640, 3), dtype='uint8',
+                                        chunks=(1, 480, 640, 3), )
+            
+        #_ = obs.create_dataset('qpos', (data_size, 14))
+        _ = root.create_dataset('action', (data_size, 7))
+        _ = root.create_dataset('isSuccess',(data_size,1))
+        # data_dict write into h5py.File
+        for name, array in data_dict.items():  
+            root[name][...] = array
+    print(f'\033[32m\nSaving: {time.time() - t0:.1f} secs. %s \033[0m\n'%dataset_path)
 
 def run_openvla_oft(
     cfg: GenerateConfig,
@@ -132,76 +199,139 @@ def run_openvla_oft(
     ros_operator
 ):
     # Initialize action queue
-    action_queue = deque() # maxlen=cfg.num_open_loop_steps
-
+    action_queue = deque(maxlen=cfg.num_open_loop_steps)
+    save_actions = []
+    save_images = []
     # Setup
     t = 0
-   
-    
+    curr_state = None
+    replay_images = []
+    replay_images_resized = []
+    replay_images_left_wrist_resized = []
+    replay_images_right_wrist_resized = []
+
+    # Fetch initial robot state (but sleep first so that robot stops moving)
+
     episode_start_time = time.time()
     total_model_query_time = 0.0
+    #Initialization
+    #rate = rospy.Rate(cfg.publish_rate)
+    right0 = [0.0619 , 1.539,  -0.7084  ,0.0671 , 0.5424,  0.0683 , 0.0732]
+    right0 = [ 0.0798 , 1.8401 ,-0.9692 ,-0.0383 , 0.7155 , 0.1788 , 0.0693]
     left0 = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, 3.557830810546875]
-    right0 = [0.0553 , 1.7357, -0.7476 , 0.0677 , 0.3858 ,-0.0457 , 0.0644]
-    ros_operator.puppet_arm_publish_continuous(left0,right0)
-    ds, info = tfds.load(
-        'aloha_square_d0_100:1.0.0',  # 数据集名称
-        data_dir='/home/agilex/dataset/',  # 新目录路径
-        split='train',  # 指定拆分，例如 'train' 或 'test'
-        with_info=True  # 获取数据集元数据
+    #right0 = [-0.00133514404296875, 0.00438690185546875, 0.034523963928222656, -0.053597450256347656, -0.00476837158203125, -0.00209808349609375, 3.557830810546875]
+    last_right_action = np.array(right0)
+    save_actions.append(np.array(right0))
+    #for _ in range(10):
+    ros_operator.puppet_arm_publish_continuous(left0, right0)
+    input("按回车开始测试")
+    try:
+        print("按空格结束采集")
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        tty.setcbreak(fd)
+        while t < cfg.max_steps:
+            # Get step start time (used to compute how much to sleep between steps)
+            step_start_time = time.time()
+
+            # If action queue is empty, requery model
+            if len(action_queue) == 0:
+                # Prepare observation
+                print_flag = True
+                while True and not rospy.is_shutdown():
+                    result = ros_operator.get_img()
+                    if not isinstance(result, np.ndarray):
+                        if print_flag:
+                            print("syn fail")
+                            print_flag = False
+                        #rate.sleep()
+                        continue
+                    else:
+                        print_flag = True
+                        img_front = result
+                        #print()
+                        break
+                observation, img_resized = prepare_observation(img_front,resize_size)
+                observation["instruction"] = "Insert the square into the stick"
+
+                # Query model to get action
+                actions = get_action_from_server(observation, server_endpoint)
+                #第一次推理结束
+
+                actions = actions[: cfg.num_open_loop_steps]
+                action_queue.extend(actions)
+            
+            rate = rospy.Rate(50)
+            start_time = time.time()
+            while len(action_queue) > 0 and not rospy.is_shutdown():
+                action = action_queue.popleft()
+                left_action = left0
+                #prev_curr_l1 = np.mean(abs(rigth_action - last_right_action))
+                right_action = action #[7:14]
+                prev_curr_l1 = np.mean(abs(right_action[0:6] - last_right_action[0:6]))
+
+                assert prev_curr_l1 < 0.5 , "移动角度过大"
+                
+                right_state = np.array(ros_operator.puppet_arm_right_deque[-1].position)
+                prev_state_l1 = np.mean(abs(right_state[0:6] - last_right_action[0:6]))
+
+                assert prev_state_l1 < 0.3, "与目标状态差异过大"
+                last_right_action = right_action
+                ros_operator.puppet_arm_publish(left_action, right_action)
+                # Prepare observation
+                print_flag = True
+
+                # while True and not rospy.is_shutdown():
+                #     result = ros_operator.get_img()
+                #     if not isinstance(result, np.ndarray):
+                #         if print_flag:
+                #             print("syn fail")
+                #             print_flag = False
+                #         #rate.sleep()
+                #         continue
+                #     else:
+                #         print_flag = True
+                #         img_front = result
+                #         #print()
+                #         break
+
+                rate.sleep()
+            t += 1
+            r, w, x = select.select([sys.stdin], [], [], 0)
+            if r:
+                key = sys.stdin.read(1)
+                if key == ' ':
+                    print("结束单次测试")
+                    break
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        termios.tcflush(fd, termios.TCIFLUSH)
+    except Exception as e:
+        print(e)
+
+    episode_end_time = time.time()
+
+    # Get success feedback from user
+    user_input = input("Success? Enter 'y' or 'n': ")
+    success = True if user_input.lower() == "y" else False
+
+    user_input = input("Save? Enter 'y' or 'n': ")
+    Save = success = True if user_input.lower() == "y" else False
+
+    # Calculate episode statistics
+    episode_stats = {
+        "success": success,
+        "total_steps": t,
+        #"model_query_time": total_model_query_time,
+        #"episode_duration": episode_end_time - episode_start_time,
+    }
+
+    return (
+        episode_stats,
+        replay_images,
+        replay_images_resized,
+        replay_images_left_wrist_resized,
+        replay_images_right_wrist_resized,
     )
-    #ds.shuffle(buffer_size=50)
-    ds_iter = iter(ds.take(1))  # Take one sample
-    sample = next(ds_iter)
-    step_iter = iter(sample['steps'])
-    while t < cfg.max_steps:
-        obs_actions = []
-        obs_img_fronts = []
-        obs_img_lefts = []
-        obs_img_rights = []
-        obs_states = []
-
-        
-        for _ in range(8):
-            try:
-                step = next(step_iter)
-            except:
-                assert False
-
-            obs_actions.append(step['action'].numpy())
-            obs_img_fronts.append(step['observation']['image'].numpy())
-            #obs_img_lefts.append(step['observation']['left_wrist_image'].numpy())
-            #obs_img_rights.append(step['observation']['right_wrist_image'].numpy())
-            #obs_states.append(step['observation']['state'].numpy())
-
-        observation, img_resized = prepare_observation(obs_img_fronts[0],resize_size)
-        observation["instruction"] = "Insert the square into the stick"
-
-        actions = get_action_from_server(observation, server_endpoint)
-        #actions = obs_actions
-
-
-        predicted_actions = torch.from_numpy(np.array(actions))  
-        ground_truth_actions = torch.from_numpy(np.array(obs_actions)) 
-        actions = obs_actions
-        ground_truth_curr_action = ground_truth_actions[:, 0]
-        predicted_curr_action = predicted_actions[:, 0]
-        ground_truth_next_actions = ground_truth_actions[:, 1:]
-        predicted_next_actions = predicted_actions[:, 1:]
-        curr_action_l1_loss = np.mean(abs(np.array(ground_truth_curr_action) - np.array(predicted_curr_action)))
-        next_actions_l1_loss = np.mean(abs(np.array(ground_truth_next_actions) - np.array(predicted_next_actions)))
-        print(f"Step {t}, l1 curr_action_l1_loss = {curr_action_l1_loss}, l1 next_actions_l1_loss = {next_actions_l1_loss}")
-        t += 8
-        # rate = rospy.Rate(50)
-        # while not rospy.is_shutdown():
-        #     for action in actions:
-        #         left_action = action[:7]
-        #         right_action = right0
-        #         # ros_operator.puppet_arm_publish_continuous(left_action, right_action)
-        #         ros_operator.puppet_arm_publish(left_action, right_action)
-        #         rate.sleep() 
-        #     break
-        # continue
-    return 
 class RosOperator:
     def __init__(self, args):
         self.robot_base_deque = None
@@ -273,6 +403,7 @@ class RosOperator:
                 continue
             else:
                 break
+
         left_symbol = [1 if left[i] - left_arm[i] > 0 else -1 for i in range(len(left))]
         right_symbol = [1 if right[i] - right_arm[i] > 0 else -1 for i in range(len(right))]
         flag = True
@@ -352,8 +483,16 @@ class RosOperator:
         self.puppet_arm_publish_thread = threading.Thread(target=self.puppet_arm_publish_continuous, args=(left, right))
         self.puppet_arm_publish_thread.start()
 
+    def get_img(self):
+        if len(self.img_front_deque) == 0:
+            return False
+        frame_time = self.img_front_deque[-1].header.stamp.to_sec()
+        while self.img_front_deque[0].header.stamp.to_sec() < frame_time:
+            self.img_front_deque.popleft()
+        img_front = self.bridge.imgmsg_to_cv2(self.img_front_deque.popleft(), 'passthrough')
+        return img_front
     def get_frame(self):
-        if len(self.img_left_deque) == 0 or len(self.img_right_deque) == 0 or len(self.img_front_deque) == 0 or \
+        if len(self.img_front_deque) == 0 or \
                 (self.args.use_depth_image and (len(self.img_left_depth_deque) == 0 or len(self.img_right_depth_deque) == 0 or len(self.img_front_depth_deque) == 0)):
             return False
         if self.args.use_depth_image:
@@ -428,15 +567,6 @@ class RosOperator:
         return (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
                 puppet_arm_left, puppet_arm_right, robot_base)
 
-    def img_left_callback(self, msg):
-        if len(self.img_left_deque) >= 2000:
-            self.img_left_deque.popleft()
-        self.img_left_deque.append(msg)
-
-    def img_right_callback(self, msg):
-        if len(self.img_right_deque) >= 2000:
-            self.img_right_deque.popleft()
-        self.img_right_deque.append(msg)
 
     def img_front_callback(self, msg):
         if len(self.img_front_deque) >= 2000:
@@ -486,9 +616,7 @@ class RosOperator:
 
     def init_ros(self):
         rospy.init_node('joint_state_publisher', anonymous=True)
-        #rospy.Subscriber(self.args.img_left_topic, Image, self.img_left_callback, queue_size=1000, tcp_nodelay=True)
-        #rospy.Subscriber(self.args.img_right_topic, Image, self.img_right_callback, queue_size=1000, tcp_nodelay=True)
-        #rospy.Subscriber(self.args.img_front_topic, Image, self.img_front_callback, queue_size=1000, tcp_nodelay=True)
+        rospy.Subscriber(self.args.img_front_topic, Image, self.img_front_callback, queue_size=1000, tcp_nodelay=True)
         if self.args.use_depth_image:
             rospy.Subscriber(self.args.img_left_depth_topic, Image, self.img_left_depth_callback, queue_size=1000, tcp_nodelay=True)
             rospy.Subscriber(self.args.img_right_depth_topic, Image, self.img_right_depth_callback, queue_size=1000, tcp_nodelay=True)
@@ -565,7 +693,7 @@ def get_arguments():
     parser.add_argument('--use_robot_base', action='store', type=bool, help='use_robot_base',
                         default=False, required=False)
     parser.add_argument('--publish_rate', action='store', type=int, help='publish_rate',
-                        default=100, required=False)
+                        default=25, required=False)
     parser.add_argument('--pos_lookahead_step', action='store', type=int, help='pos_lookahead_step',
                         default=0, required=False)
     parser.add_argument('--chunk_size', action='store', type=int, help='chunk_size',
@@ -589,7 +717,9 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
 
     # Set random seed
     #set_seed_everywhere(cfg.seed)
-
+    success_episode = 0
+    total_episodes = 0
+    success_rate = 0
     # Setup logging
     #log_file, local_log_filepath, run_id = setup_logging(cfg)
 
@@ -607,10 +737,23 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
 
     #Start Policy:
     if cfg.policy_type == "openvla-oft":
+
     #Run policy
-        episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
-            run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
-        )
+        while True:
+            
+            episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
+                run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
+            )
+            if episode_stats["success"]:
+                success_episode += 1
+            total_episodes += 1
+            success_rate = success_episode / total_episodes
+            print("="*100)
+            print("当前测试次数:", total_episodes)
+            print("此次是否成功:", episode_stats["success"])
+            print("当前成功率:", success_rate*100, "%")
+            print("当前成功次数:", success_episode, "总测试次数:", total_episodes)
+            #nput("按回车开始下一次测试")
     else:
         raise NotImplemented
 
@@ -618,7 +761,6 @@ def main():
     args = get_arguments()
     ros_operator = RosOperator(args)
     cfg = GenerateConfig
-    #ros_operator = None
     eval_aloha(GenerateConfig,ros_operator)
     #pisode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
     #        run_episode(cfg, task_description, server_endpoint, resize_size, log_file)

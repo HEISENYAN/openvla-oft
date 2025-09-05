@@ -142,13 +142,87 @@ def pick_latest_for_expected_t(expected_timestep, created_timestep):
 
 def clear_action_buffer():
     """episode 开始前清空所有队列与计数器。"""
-    global _schedule_cursor, _created_counter
+    global _schedule_cursor, _created_counter, _control_t
     with _action_lock:
         _action_queues.clear()
         _schedule_cursor = 0
         _created_counter = 0
         _control_t = 0        # 新增
+episode_idx = 0
+import h5py
+def save_data(images, actions, success, cfg):
+    # 数据字典
+    global episode_idx
+    data_size = len(actions)
+    data_dict = {
+        # 一个是奖励里面的qpos，qvel， effort ,一个是实际发的acition
+        #'/observations/qpos': [],
+        #'/observations/qvel': [],
+        #'/observations/effort': [],
+        '/action': [],
+        #'/base_action': [],
+        '/observations/images/image_front':[],
+        '/isSuccess': []
+        # '/base_action_t265': [],
+    }
+    bridge = CvBridge()
+    timesteps = []
+    while len(images):
+        image = images.pop(0)
+        image = bridge.imgmsg_to_cv2(image, 'passthrough')
+        timesteps.append(image)
+    # len(action): max_timesteps, len(time_steps): max_timesteps + 1
+    # 动作长度 遍历动作
+    while actions:
+        # 循环弹出一个队列
+        action = actions.pop(0)   # 动作  当前动作
+        ts = timesteps.pop(0)     # 奖励  前一帧
 
+        # 往字典里面添值
+        # Timestep返回的qpos，qvel,effort
+        # data_dict['/observations/qpos'].append(ts.observation['qpos'])
+        # data_dict['/observations/qvel'].append(ts.observation['qvel'])
+        # data_dict['/observations/effort'].append(ts.observation['effort'])
+
+        # 实际发的action
+        data_dict['/action'].append(action)
+        data_dict['/isSuccess'].append(success)
+        # 相机数据
+        # data_dict['/base_action_t265'].append(ts.observation['base_vel_t265'])
+        # for cam_name in args.camera_names:
+        #data_dict[f'/observations/images/image_front'].append(ts.observation['images']['image_front'])
+        data_dict[f'/observations/images/image_front'].append(ts)
+    t0 = time.time()
+    idx = episode_idx + cfg.episode_idx
+    dataset_path = os.path.join(cfg.output_dir, cfg.task_name)
+    if not os.path.exists(dataset_path):
+        os.makedirs(dataset_path, exist_ok=True)
+    dataset_path = os.path.join(dataset_path, "episode_" + str(idx))
+
+    with h5py.File(dataset_path + '.hdf5', 'w', rdcc_nbytes=1024**2*2) as root:
+        # 文本的属性：
+        # 1 是否仿真
+        # 2 图像是否压缩
+        #
+        root.attrs['sim'] = False
+        root.attrs['compress'] = False
+
+        # 创建一个新的组observations，观测状态组
+        # 图像组
+        obs = root.create_group('observations')
+        image = obs.create_group('images')
+        
+        _ = image.create_dataset("image_front", (data_size, 480, 640, 3), dtype='uint8',
+                                        chunks=(1, 480, 640, 3), )
+            
+        #_ = obs.create_dataset('qpos', (data_size, 14))
+        _ = root.create_dataset('action', (data_size, 7))
+        _ = root.create_dataset('isSuccess',(data_size))
+        # data_dict write into h5py.File
+        for name, array in data_dict.items():  
+            root[name][...] = array
+    print(f'\033[32m\nSaving: {time.time() - t0:.1f} secs. %s \033[0m\n'%dataset_path)
+    episode_idx += 1
 # ===================== 配置 =====================
 @dataclass
 class GenerateConfig:
@@ -183,6 +257,10 @@ class GenerateConfig:
     task_description :str = "Insert the square into the stick"
     # fmt: on
 
+    episode_idx = 0
+    output_dir = "../data"
+    task_name = "Square_D0_100_Clean_Inference"
+
 inference_thread = None
 inference_lock = threading.Lock()
 inference_actions = None
@@ -194,19 +272,14 @@ def get_server_endpoint(cfg: GenerateConfig):
     ip_address = socket.gethostbyname(cfg.vla_server_url)
     return f"http://{ip_address}:8777/act"
 
-def prepare_observation(img,left_wrist_img, right_wrist_img,qpos,resize_size):
+def prepare_observation(img,resize_size):
     """Prepare observation for policy input."""
     img_resized = resize_image_for_policy(img, resize_size)
-    left_wrist_img_resized = resize_image_for_policy(left_wrist_img, resize_size)
-    right_wrist_img_resized = resize_image_for_policy(right_wrist_img, resize_size)
     observation = {
-        "full_image": img_resized,
-        # "left_wrist_image": left_wrist_img_resized,
-        # "right_wrist_image": right_wrist_img_resized,
-        # "state": qpos,
+        "full_image": img_resized
     } 
-    return observation, img_resized, left_wrist_img_resized, right_wrist_img_resized
-
+    return observation, img_resized
+stop_signal  = threading.Event()
 # ===================== 生产者线程：反复请求 action chunk =====================
 def _action_producer_loop(cfg: GenerateConfig, server_endpoint, resize_size, ros_operator):
     """
@@ -219,23 +292,22 @@ def _action_producer_loop(cfg: GenerateConfig, server_endpoint, resize_size, ros
     print_flag_local = True
     global _control_t
     rate = rospy.Rate(cfg.publish_rate)  # 控制请求频率；可根据模型吞吐调整
-    while not _action_stop_event.is_set() and not rospy.is_shutdown():
+    while not _action_stop_event.is_set() and not rospy.is_shutdown() and not stop_signal.is_set():
         with _action_lock:
             _schedule_cursor = _control_t
         # 采帧（必要时等待）
-        result = ros_operator.get_frame()
-        if not result:
+        start_time = time.time()
+        result = ros_operator.get_img()
+        if not isinstance(result,np.ndarray):
             if print_flag_local:
                 print("async syn fail")
                 print_flag_local = False
             rate.sleep()
             continue
         print_flag_local = True
-        (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-         puppet_arm_left, puppet_arm_right, robot_base) = result
-
-        qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
-        observation, _, _, _ = prepare_observation(img_front, img_left, img_right, qpos, resize_size)
+        img_front = result
+        print("control_t为：", _control_t)
+        observation, _= prepare_observation(img_front, resize_size)
         observation["instruction"] = cfg.task_description
 
         # 请求 chunk
@@ -270,13 +342,12 @@ def run_openvla_oft(
 ):
     # Setup
     t = 0
-    replay_images = []
-    replay_images_resized = []
-    replay_images_left_wrist_resized = []
-    replay_images_right_wrist_resized = []
-
+    global stop_signal
+    stop_signal.clear()
     # 初始位姿
     right0 = [0.0553 , 1.7357, -0.7476 , 0.0677 , 0.3858 ,-0.0457 , 0.0644]
+    right0 = [ 0.0798 , 1.8401 ,-0.9692 ,-0.0383 , 0.7155 , 0.1788 , 0.0693]
+    right0 = [ 0.0771 , 1.8638, -0.9551 ,-0.0086 , 0.6811 , 0.1366 , 0.0771]
     left0  = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, 3.557830810546875]
     last_right_action = np.array(right0)
 
@@ -310,33 +381,14 @@ def run_openvla_oft(
         rate = rospy.Rate(50)  # 控制周期
         time.sleep(1)
         last_t = 0
+
+        save_actions = []
+        save_images = []
         while t < cfg.max_steps and not rospy.is_shutdown():
             with _action_lock:
                 _control_t = t
             step_start_time = time.time()
 
-            # （仅用于保存重放图像；推理由后台线程完成）
-            # result = ros_operator.get_frame()
-            # if not result:
-            #     if print_flag:
-            #         print("syn fail")
-            #         print_flag = False
-            #     rate.sleep()
-            #     continue
-            # print_flag = True
-
-            # (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-            #  puppet_arm_left, puppet_arm_right, robot_base) = result
-
-            # qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
-            # _, img_resized, left_wrist_resized, right_wrist_resized = prepare_observation(
-            #     img_front, img_left, img_right, qpos, resize_size
-            # )
-            # replay_images_resized.append(img_resized)
-            # replay_images_left_wrist_resized.append(left_wrist_resized)
-            # replay_images_right_wrist_resized.append(right_wrist_resized)
-
-            # === 关键：对 expected timestep = t，从队列中取“最新创建”的 action ===
             head = pick_latest_for_expected_t(t, last_t)
             if head is None:
                 # 该 timestep 的动作还没准备好；等待下一拍
@@ -366,6 +418,9 @@ def run_openvla_oft(
 
             last_right_action = np.array(right_action)
 
+            save_images.append(ros_operator.img)
+            save_actions.append(right_action)
+
             # 发布
             ros_operator.puppet_arm_publish(left_action, right_action)
 
@@ -373,6 +428,8 @@ def run_openvla_oft(
             t += 1
             rate.sleep()
 
+
+            
             # 按键停止
             r, w, x = select.select([sys.stdin], [], [], 0)
             if r:
@@ -387,26 +444,25 @@ def run_openvla_oft(
     except Exception as e:
         print("Exception:", e)
 
+    
     episode_end_time = time.time()
-
-    # 如需在一次 episode 后停生产者，可解注：
-    # _action_stop_event.set()
-    # if _action_prod_thread is not None:
-    #     _action_prod_thread.join(timeout=2.0)
+    stop_signal.set()
+    _action_prod_thread.join()
 
     user_input = input("Success? Enter 'y' or 'n': ")
     success = True if user_input.lower() == "y" else False
+    user_input = input("Save this episode? Enter 'y' or 'n': ")
+    save = True if user_input.lower() == "y" else False
+
+    if save == True:
+        save_data(save_images, save_actions,success,cfg)
 
     episode_stats = {
         "success": success,
         "total_steps": t,
     }
     return (
-        episode_stats,
-        replay_images,
-        replay_images_resized,
-        replay_images_left_wrist_resized,
-        replay_images_right_wrist_resized,
+        episode_stats
     )
 
 # ===================== ROS Operator（与你原版一致） =====================
@@ -416,6 +472,7 @@ class RosOperator:
         self.puppet_arm_right_deque = None
         self.puppet_arm_left_deque = None
         self.img_front_deque = None
+        self.img = None
         self.img_right_deque = None
         self.img_left_deque = None
         self.img_front_depth_deque = None
@@ -475,6 +532,7 @@ class RosOperator:
                 rate.sleep(); continue
             else:
                 break
+
 
         left_symbol  = [1 if left[i]  - left_arm[i]  > 0 else -1 for i in range(len(left))]
         right_symbol = [1 if right[i] - right_arm[i] > 0 else -1 for i in range(len(right))]
@@ -545,6 +603,19 @@ class RosOperator:
         self.puppet_arm_publish_thread = threading.Thread(target=self.puppet_arm_publish_continuous, args=(left, right))
         self.puppet_arm_publish_thread.start()
 
+    
+    def get_img(self):
+        
+        if len(self.img_front_deque) == 0 :
+            return False
+        frame_time = self.img_front_deque[-1].header.stamp.to_sec()
+
+        if len(self.img_front_deque) == 0 < frame_time:
+            return False
+        while self.img_front_deque[0].header.stamp.to_sec() < frame_time:
+            self.img_front_deque.popleft()
+        img_front = self.bridge.imgmsg_to_cv2(self.img_front_deque.popleft(), 'passthrough')
+        return img_front
     def get_frame(self):
         if len(self.img_left_deque) == 0 or len(self.img_right_deque) == 0 or len(self.img_front_deque) == 0 or \
                 (self.args.use_depth_image and (len(self.img_left_depth_deque) == 0 or len(self.img_right_depth_deque) == 0 or len(self.img_front_depth_deque) == 0)):
@@ -635,6 +706,7 @@ class RosOperator:
         if len(self.img_front_deque) >= 2000:
             self.img_front_deque.popleft()
         self.img_front_deque.append(msg)
+        self.img = msg
 
     def img_left_depth_callback(self, msg):
         if len(self.img_left_depth_deque) >= 2000:
@@ -679,8 +751,6 @@ class RosOperator:
 
     def init_ros(self):
         rospy.init_node('joint_state_publisher', anonymous=True)
-        rospy.Subscriber(self.args.img_left_topic, Image, self.img_left_callback, queue_size=1000, tcp_nodelay=True)
-        rospy.Subscriber(self.args.img_right_topic, Image, self.img_right_callback, queue_size=1000, tcp_nodelay=True)
         rospy.Subscriber(self.args.img_front_topic, Image, self.img_front_callback, queue_size=1000, tcp_nodelay=True)
         if self.args.use_depth_image:
             rospy.Subscriber(self.args.img_left_depth_topic, Image, self.img_left_depth_callback, queue_size=1000, tcp_nodelay=True)
@@ -746,6 +816,7 @@ def get_arguments():
 
     parser.add_argument('--use_actions_interpolation', action='store', type=bool, default=False, required=False)
     parser.add_argument('--use_depth_image', action='store', type=bool, default=False, required=False)
+
     args = parser.parse_args()
     return args
 
@@ -758,7 +829,7 @@ def eval_aloha(cfg: GenerateConfig, ros_operator) -> None:
 
     if cfg.policy_type == "openvla-oft":
         while True:
-            episode_stats, replay_images, replay_images_resized, replay_images_left_wrist, replay_images_right_wrist = (
+            episode_stats = (
                 run_openvla_oft(cfg, task_description, server_endpoint, resize_size, ros_operator)
             )
             if episode_stats["success"]:

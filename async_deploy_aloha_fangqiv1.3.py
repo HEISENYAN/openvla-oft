@@ -194,18 +194,16 @@ def get_server_endpoint(cfg: GenerateConfig):
     ip_address = socket.gethostbyname(cfg.vla_server_url)
     return f"http://{ip_address}:8777/act"
 
-def prepare_observation(img,left_wrist_img, right_wrist_img,qpos,resize_size):
+def prepare_observation(img,resize_size):
     """Prepare observation for policy input."""
     img_resized = resize_image_for_policy(img, resize_size)
-    left_wrist_img_resized = resize_image_for_policy(left_wrist_img, resize_size)
-    right_wrist_img_resized = resize_image_for_policy(right_wrist_img, resize_size)
     observation = {
         "full_image": img_resized,
         # "left_wrist_image": left_wrist_img_resized,
         # "right_wrist_image": right_wrist_img_resized,
         # "state": qpos,
     } 
-    return observation, img_resized, left_wrist_img_resized, right_wrist_img_resized
+    return observation, img_resized
 
 # ===================== 生产者线程：反复请求 action chunk =====================
 def _action_producer_loop(cfg: GenerateConfig, server_endpoint, resize_size, ros_operator):
@@ -223,19 +221,17 @@ def _action_producer_loop(cfg: GenerateConfig, server_endpoint, resize_size, ros
         with _action_lock:
             _schedule_cursor = _control_t
         # 采帧（必要时等待）
-        result = ros_operator.get_frame()
-        if not result:
+        result = ros_operator.get_img()
+        if not isinstance(result,np.ndarray):
             if print_flag_local:
                 print("async syn fail")
                 print_flag_local = False
             rate.sleep()
             continue
         print_flag_local = True
-        (img_front, img_left, img_right, img_front_depth, img_left_depth, img_right_depth,
-         puppet_arm_left, puppet_arm_right, robot_base) = result
+        img_front = result
 
-        qpos = np.concatenate((np.array(puppet_arm_left.position), np.array(puppet_arm_right.position)), axis=0)
-        observation, _, _, _ = prepare_observation(img_front, img_left, img_right, qpos, resize_size)
+        observation, _= prepare_observation(img_front, resize_size)
         observation["instruction"] = cfg.task_description
 
         # 请求 chunk
@@ -277,6 +273,8 @@ def run_openvla_oft(
 
     # 初始位姿
     right0 = [0.0553 , 1.7357, -0.7476 , 0.0677 , 0.3858 ,-0.0457 , 0.0644]
+    right0 = [ 0.0798 , 1.8401 ,-0.9692 ,-0.0383 , 0.7155 , 0.1788 , 0.0693]
+    right0 = [ 0.0771 , 1.8638, -0.9551 ,-0.0086 , 0.6811 , 0.1366 , 0.0771]
     left0  = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, 3.557830810546875]
     last_right_action = np.array(right0)
 
@@ -476,6 +474,7 @@ class RosOperator:
             else:
                 break
 
+
         left_symbol  = [1 if left[i]  - left_arm[i]  > 0 else -1 for i in range(len(left))]
         right_symbol = [1 if right[i] - right_arm[i] > 0 else -1 for i in range(len(right))]
         flag = True; step = 0
@@ -545,6 +544,16 @@ class RosOperator:
         self.puppet_arm_publish_thread = threading.Thread(target=self.puppet_arm_publish_continuous, args=(left, right))
         self.puppet_arm_publish_thread.start()
 
+    def get_img(self):
+        if len(self.img_front_deque) == 0 :
+            return False
+        frame_time = self.img_front_deque[-1].header.stamp.to_sec()
+        if len(self.img_front_deque) == 0 or self.img_front_deque[-1].header.stamp.to_sec() < frame_time:
+            return False
+        while self.img_front_deque[0].header.stamp.to_sec() < frame_time:
+            self.img_front_deque.popleft()
+        img_front = self.bridge.imgmsg_to_cv2(self.img_front_deque.popleft(), 'passthrough')
+        return img_front
     def get_frame(self):
         if len(self.img_left_deque) == 0 or len(self.img_right_deque) == 0 or len(self.img_front_deque) == 0 or \
                 (self.args.use_depth_image and (len(self.img_left_depth_deque) == 0 or len(self.img_right_depth_deque) == 0 or len(self.img_front_depth_deque) == 0)):
@@ -679,8 +688,6 @@ class RosOperator:
 
     def init_ros(self):
         rospy.init_node('joint_state_publisher', anonymous=True)
-        rospy.Subscriber(self.args.img_left_topic, Image, self.img_left_callback, queue_size=1000, tcp_nodelay=True)
-        rospy.Subscriber(self.args.img_right_topic, Image, self.img_right_callback, queue_size=1000, tcp_nodelay=True)
         rospy.Subscriber(self.args.img_front_topic, Image, self.img_front_callback, queue_size=1000, tcp_nodelay=True)
         if self.args.use_depth_image:
             rospy.Subscriber(self.args.img_left_depth_topic, Image, self.img_left_depth_callback, queue_size=1000, tcp_nodelay=True)

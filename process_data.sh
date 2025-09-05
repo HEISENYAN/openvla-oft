@@ -1,4 +1,4 @@
-    python experiments/robot/aloha/preprocess_split_aloha_data.py \
-        --dataset_path ~/cobot_magic/collect_data/data/aloha_game_300 \
-        --out_base_dir ~/aloha_game_300/ \
+    python experiments/robot/aloha/preprocess_split_aloha_data_front.py \
+        --dataset_path ~/cobot_magic/collect_data/data/Square_D0_100_clean \
+        --out_base_dir ~/dataset/Square_D0_100_clean \
         --percent_val 0
