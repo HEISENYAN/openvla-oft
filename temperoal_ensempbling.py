@@ -3,29 +3,12 @@
 from typing import Any, Dict
 
 import numpy as np
-import gymnasium as gym
-from gymnasium.spaces import Box
 
-
-class ActionSequence(gym.ActionWrapper, gym.utils.RecordConstructorArgs):
+class ActionSequence():
     """Wrapper for allowing action sequences."""
 
-    def __init__(self, env: gym.Env, sequence_length: int):
-        gym.utils.RecordConstructorArgs.__init__(self)
-        gym.ActionWrapper.__init__(self, env)
+    def __init__(self, sequence_length: int):
         self._sequence_length = sequence_length
-        self.is_vector_env = getattr(env, "is_vector_env", False)
-        self.is_demo_env = getattr(env, "is_demo_env", False)
-        if self.is_vector_env:
-            raise NotImplementedError(
-                "It is not possible to use this wrapper with a VecEnv."
-            )
-        low, high = env.action_space.low, env.action_space.high
-        self.action_space = Box(
-            np.expand_dims(low, 0).repeat(sequence_length, 0),
-            np.expand_dims(high, 0).repeat(sequence_length, 0),
-            dtype=self.action_space.dtype,
-        )
 
     def _step_sequence(self, action):
         total_reward = np.array(0.0)
@@ -70,7 +53,6 @@ class RecedingHorizonControl(ActionSequence):
 
     def __init__(
         self,
-        env: gym.Env,
         sequence_length: int,
         time_limit: int,
         execution_length: int,
@@ -87,7 +69,7 @@ class RecedingHorizonControl(ActionSequence):
             temporal_ensemble: Whether to use temporal ensembling. Defaults to True.
             gain: Temporal ensembling gain. Defaults to 0.01.
         """
-        super().__init__(env, sequence_length)
+        super().__init__( sequence_length)
         self._time_limit = time_limit
         self._execution_length = execution_length
         self._temporal_ensemble = temporal_ensemble
