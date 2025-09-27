@@ -215,7 +215,7 @@ class GenerateConfig:
     # ALOHA environment-specific parameters
     #################################################################################################################
     num_rollouts_planned: int = 50
-    max_steps: int = 360
+    max_steps: int = 256
     use_relative_actions: bool = False
     publish_rate: int = 50
 
@@ -234,7 +234,7 @@ class GenerateConfig:
 
     episode_idx = 0
     output_dir = "../data"
-    task_name = "Square_D0_100_Clean_Inference_50000"
+    task_name = "aloha_inference_9_17"
 
 inference_thread = None
 inference_lock = threading.Lock()
@@ -321,6 +321,9 @@ def run_openvla_oft(
     right0 = [0.0553 , 1.7357, -0.7476 , 0.0677 , 0.3858 ,-0.0457 , 0.0644]
     right0 = [ 0.0798 , 1.8401 ,-0.9692 ,-0.0383 , 0.7155 , 0.1788 , 0.0693]
     right0 = [ 0.0771 , 1.8638, -0.9551 ,-0.0086 , 0.6811 , 0.1366 , 0.0771]
+    #right0 = [ 0.0435,  1.8485 ,-0.9418 , 0.0885  ,0.6724 , 0.0151 , 0.0718]
+    #right0 = [ 0.337 , 1.77 ,-0.933,  0.144 , 0.853 , 0.42   ,0.072] 
+    #right0 = [ 0.317 , 1.815, -0.969,  0.108 , 0.869  ,0.341 , 0.073]
     left0  = [-0.00133514404296875, 0.00209808349609375, 0.01583099365234375, -0.032616615295410156, -0.00286102294921875, 0.00095367431640625, 3.557830810546875]
     last_right_action = np.array(right0)
 

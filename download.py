@@ -1,14 +1,15 @@
 from huggingface_hub import hf_hub_download, list_repo_files
 
-repo_id = "fangqi/openvla-oft-dpo"
+repo_id = "fangqi/openvla-oft"
 
 files = list_repo_files(repo_id )#,repo_type="dataset")
-#files = [file for file in files if "09/04/aloha_game_100_fix/openvla-7b+aloha_game+b8+lr-0.0005+lora-r32+dropout-0.0--image_aug--aloha_game_100_8_fix--100000_chkpt" in file]
+files = [file for file in files if "09/23/aloha_wm_128_grpo_b64/global_step_15" in file]
+print(files)
 for file in files:
     print(file)
     hf_hub_download(
         repo_id=repo_id, 
         filename=file,
         #repo_type="dataset",
-        local_dir="/home/agilex/checkpoints/aloha-game-dpo"
+        local_dir="/home/agilex/checkpoints"
         )
